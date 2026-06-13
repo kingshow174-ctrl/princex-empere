@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PRINCEX EMPERE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">👑</span>
+      <div>
+        <h1 class="logo-title">PRINCEX</h1>
+        <p class="logo-sub">EMPERE · TRADING SIGNALS</p>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="live-dot"></span>
+      <span id="status-text">CONNECTING...</span>
+    </div>
+  </header>
+
+  <section class="pair-section">
+    <p class="section-label">SELECT PAIR</p>
+    <div class="pair-grid" id="pair-grid"></div>
+  </section>
+
+  <section class="chart-section">
+    <p class="section-label">📊 LIVE CHART · 1MIN</p>
+    <div id="tradingview-widget"></div>
+  </section>
+
+  <section class="signal-section">
+    <div id="signal-card" class="signal-card idle">
+      <p class="signal-label">SIGNAL</p>
+      <h2 id="signal-direction">--</h2>
+      <p id="signal-pair-display">Select a pair & get signal</p>
+      <div class="candle-predictions">
+        <div class="candle-box" id="c1">C1: --</div>
+        <div class="candle-box" id="c2">C2: --</div>
+        <div class="candle-box" id="c3">C3: --</div>
+      </div>
+      <p class="expiry-note">1 MIN · 3 CANDLES · 3 MIN EXPIRY</p>
+    </div>
+    <button class="btn-signal" id="btn-get-signal">⚡ GET SIGNAL</button>
+    <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
+  </section>
+
+  <section class="history-section">
+    <p class="section-label">📋 SIGNAL HISTORY</p>
+    <div id="history-list">
+      <p class="empty-msg">No signals yet. Hit GET SIGNAL to start.</p>
+    </div>
+  </section>
+
+  <footer class="footer">PRINCEX EMPERE · TRADING INVOLVES RISK</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="signal.js"></script>
+  <script src="chart.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
