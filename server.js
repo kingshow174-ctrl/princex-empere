@@ -62,3 +62,14 @@ app.get("*", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("PRINCEX EMPERE live on port " + PORT));
+
+// Serve SVG icon
+app.get("/icon.svg", (req, res) => {
+  res.setHeader("Content-Type", "image/svg+xml");
+  res.send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0a0e1a"/>
+  <rect width="512" height="512" rx="80" fill="#f5c842" opacity="0.1"/>
+  <text x="256" y="300" font-size="260" text-anchor="middle" font-family="Arial">👑</text>
+  <text x="256" y="420" font-size="55" text-anchor="middle" font-family="Arial" font-weight="900" fill="#f5c842" letter-spacing="6">PRINCEX</text>
+</svg>`);
+});
