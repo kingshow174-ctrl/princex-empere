@@ -73,3 +73,11 @@ app.get("/icon.svg", (req, res) => {
   <text x="256" y="420" font-size="55" text-anchor="middle" font-family="Arial" font-weight="900" fill="#f5c842" letter-spacing="6">PRINCEX</text>
 </svg>`);
 });
+
+// Keep Render free tier awake - ping every 14 minutes
+setInterval(() => {
+  fetch("https://princex-empere.onrender.com/health")
+    .catch(() => {});
+}, 14 * 60 * 1000);
+
+app.get("/health", (req, res) => res.send("OK"));
