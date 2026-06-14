@@ -2,7 +2,6 @@ const express = require("express");
 const path    = require("path");
 const app     = express();
 
-// Serve config with keys from Render environment vars
 app.get("/config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   res.send(`
@@ -37,6 +36,7 @@ function resolveSymbol(pair) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const grid = document.getElementById("pair-grid");
+  if (!grid) return;
   PAIRS.forEach(pair => {
     const btn = document.createElement("button");
     btn.className = "pair-btn" + (pair === "EUR/USD" ? " active" : "");
@@ -46,7 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.classList.add("active");
       window.selectedPair = pair;
       if (window.loadTradingViewChart) loadTradingViewChart(resolveSymbol(pair));
-      document.getElementById("signal-pair-display").textContent = pair + " selected";
+      const el = document.getElementById("signal-pair-display");
+      if (el) el.textContent = pair + " selected";
     };
     grid.appendChild(btn);
   });
@@ -60,24 +61,12 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("PRINCEX EMPERE live on port " + PORT));
-
-// Serve SVG icon
-app.get("/icon.svg", (req, res) => {
-  res.setHeader("Content-Type", "image/svg+xml");
-  res.send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="80" fill="#0a0e1a"/>
-  <rect width="512" height="512" rx="80" fill="#f5c842" opacity="0.1"/>
-  <text x="256" y="300" font-size="260" text-anchor="middle" font-family="Arial">👑</text>
-  <text x="256" y="420" font-size="55" text-anchor="middle" font-family="Arial" font-weight="900" fill="#f5c842" letter-spacing="6">PRINCEX</text>
-</svg>`);
-});
-
-// Keep Render free tier awake - ping every 14 minutes
+// Keep alive ping
 setInterval(() => {
-  fetch("https://princex-empere.onrender.com/health")
-    .catch(() => {});
+  fetch("https://princex-empere.onrender.com/health").catch(() => {});
 }, 14 * 60 * 1000);
 
 app.get("/health", (req, res) => res.send("OK"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("PRINCEX EMPERE live on port " + PORT));
