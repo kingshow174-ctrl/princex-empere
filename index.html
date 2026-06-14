@@ -11,8 +11,55 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="auth.css"/>
 </head>
 <body>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-logo">
+    <span class="auth-logo-icon">👑</span>
+    <div class="auth-logo-title">PRINCEX</div>
+    <div class="auth-logo-sub">EMPERE · TRADING SIGNALS</div>
+  </div>
+
+  <div class="auth-card">
+    <h2 id="auth-title">WELCOME BACK</h2>
+    <p id="auth-subtitle">Sign in to continue</p>
+
+    <div id="name-field" class="auth-field" style="display:none">
+      <label>FULL NAME</label>
+      <input type="text" id="auth-name" placeholder="Your name"/>
+    </div>
+
+    <div class="auth-field">
+      <label>EMAIL ADDRESS</label>
+      <input type="email" id="auth-email" placeholder="you@email.com"
+        onkeydown="if(event.key==='Enter') signIn()"/>
+    </div>
+
+    <div class="auth-field">
+      <label>PASSWORD</label>
+      <input type="password" id="auth-password" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') signIn()"/>
+    </div>
+
+    <div id="auth-error"></div>
+
+    <button class="btn-signin-main" id="btn-signin" onclick="signIn()">SIGN IN</button>
+    <button class="btn-signup-main" id="btn-signup" onclick="signUp()">SIGN UP</button>
+
+    <p class="auth-forgot" onclick="resetPassword()">Forgot password?</p>
+
+    <div class="auth-toggle">
+      Don't have an account?
+      <span onclick="toggleAuthMode()">Create one</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div id="main-app" style="display:none">
 
   <header class="header">
     <div class="logo">
@@ -22,13 +69,19 @@
         <p class="logo-sub">EMPERE · TRADING SIGNALS</p>
       </div>
     </div>
-    <div class="status-bar">
+    <div style="display:flex;align-items:center;gap:8px">
       <span class="live-dot"></span>
-      <span id="status-text">LIVE</span>
+      <span id="status-text" style="font-family:var(--font-display);font-size:10px;color:var(--muted)">LIVE</span>
+      <div class="user-badge" onclick="toggleSignoutMenu()">
+        <div class="user-avatar">👤</div>
+        <span id="user-name">USER</span>
+      </div>
+    </div>
+    <div class="signout-menu" id="signout-menu">
+      <button onclick="signOut()">🚪 SIGN OUT</button>
     </div>
   </header>
 
-  <!-- STATS -->
   <section class="stats-section">
     <p class="section-label">📈 SIGNALS COUNT</p>
     <div id="stats-panel">
@@ -40,7 +93,6 @@
     </div>
   </section>
 
-  <!-- COUNTDOWN -->
   <div id="countdown-bar" style="display:none">
     <div id="countdown-fill"></div>
     <div class="countdown-info">
@@ -49,25 +101,21 @@
     </div>
   </div>
 
-  <!-- EXPIRY SELECTOR -->
   <section class="expiry-section">
     <p class="section-label">⏱ SELECT EXPIRY</p>
     <div id="expiry-selector" class="expiry-grid"></div>
   </section>
 
-  <!-- PAIRS -->
   <section class="pair-section">
     <p class="section-label">SELECT PAIR</p>
     <div class="pair-grid" id="pair-grid"></div>
   </section>
 
-  <!-- CHART -->
   <section class="chart-section">
     <p class="section-label">📊 LIVE CHART · 1MIN</p>
     <div id="tradingview-widget"></div>
   </section>
 
-  <!-- SIGNAL -->
   <section class="signal-section">
     <div id="signal-card" class="signal-card idle">
       <p class="signal-label">SIGNAL</p>
@@ -84,7 +132,6 @@
     <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
   </section>
 
-  <!-- HISTORY -->
   <section class="history-section">
     <div class="history-header">
       <p class="section-label" style="margin:0">📋 SIGNAL HISTORY</p>
@@ -97,16 +144,40 @@
 
   <footer class="footer">PRINCEX EMPERE · TRADING INVOLVES RISK</footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="expiry.js"></script>
-  <script src="tracker.js"></script>
-  <script src="signal.js"></script>
-  <script src="chart.js"></script>
-  <script src="app.js"></script>
-  <script>
-    if ("serviceWorker" in navigator)
-      navigator.serviceWorker.register("/sw.js").catch(()=>{});
-  </script>
+</div><!-- end main-app -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script src="expiry.js"></script>
+<script src="tracker.js"></script>
+<script src="signal.js"></script>
+<script src="chart.js"></script>
+<script src="app.js"></script>
+<script>
+  // Init DB then check auth
+  try {
+    db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    initAuth();
+  } catch(e) {
+    console.error(e);
+    document.getElementById("main-app").style.display = "block";
+  }
+
+  function toggleSignoutMenu() {
+    const m = document.getElementById("signout-menu");
+    m.style.display = m.style.display === "block" ? "none" : "block";
+  }
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".user-badge") && !e.target.closest(".signout-menu")) {
+      const m = document.getElementById("signout-menu");
+      if (m) m.style.display = "none";
+    }
+  });
+
+  if ("serviceWorker" in navigator)
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+</script>
 </body>
 </html>

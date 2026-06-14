@@ -2,43 +2,21 @@ let autoScanTimer = null;
 let isAutoScan    = false;
 let db            = null;
 
-try {
-  db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-} catch(e) { console.warn("Supabase:", e.message); }
-
-window.addEventListener("load", () => {
-  setTimeout(() => loadTradingViewChart("FX:EURUSD"), 1000);
-  setStatus(true);
-  renderExpirySelector();
-  renderStats();
-  renderTrackerHistory();
-  document.getElementById("btn-get-signal").addEventListener("click", onGetSignal);
-  document.getElementById("btn-auto").addEventListener("click", onToggleAuto);
-});
-
 async function onGetSignal() {
   const btn = document.getElementById("btn-get-signal");
   btn.disabled = true;
   btn.textContent = "⏳ ANALYSING...";
-
   try {
     const signal = await generateSignal(window.selectedPair || "EUR/USD");
     renderSignal(signal);
-
     if (signal.direction === "BUY" || signal.direction === "SELL") {
       const entry = addTrackedSignal(signal);
-      if (entry) {
-        startCountdown(entry);
-        renderStats();
-        renderTrackerHistory();
-      }
+      if (entry) { startCountdown(entry); renderStats(); renderTrackerHistory(); }
     }
-
     setStatus(true);
     saveSignal(signal);
   } catch(err) {
     showError("Error: " + err.message);
-    console.error(err);
   } finally {
     btn.disabled = false;
     btn.textContent = "⚡ GET SIGNAL";
@@ -49,8 +27,7 @@ function renderSignal(s) {
   const card = document.getElementById("signal-card");
   card.className = "signal-card " + (s.direction==="BUY"?"buy":s.direction==="SELL"?"sell":"idle");
   document.getElementById("signal-direction").textContent = s.direction;
-  document.getElementById("signal-pair-display").textContent =
-    `${s.pair} · ${s.biasLabel} · ${s.confidence}%`;
+  document.getElementById("signal-pair-display").textContent = `${s.pair} · ${s.biasLabel} · ${s.confidence}%`;
 
   ["c1","c2","c3"].forEach((id,i) => {
     const box = document.getElementById(id);
@@ -59,7 +36,6 @@ function renderSignal(s) {
     box.textContent = `C${i+1}: ${p.label}`;
   });
 
-  // Update expiry note
   const opt  = EXPIRY_OPTIONS.find(o => o.value === selectedExpiry);
   const note = document.getElementById("expiry-note");
   if (note && opt) note.textContent = `1 MIN · ${opt.candles} CANDLES · ${opt.label} EXPIRY`;
@@ -67,11 +43,10 @@ function renderSignal(s) {
   let panel = document.getElementById("sniper-panel");
   if (!panel) {
     panel = document.createElement("div");
-    panel.id        = "sniper-panel";
+    panel.id = "sniper-panel";
     panel.className = "sniper-panel";
     card.appendChild(panel);
   }
-
   panel.innerHTML = `
     <div class="sniper-row"><span class="s-label">BULL SCORE</span><span class="s-val bull">${s.bullScore}%</span></div>
     <div class="sniper-row"><span class="s-label">BEAR SCORE</span><span class="s-val bear">${s.bearScore}%</span></div>
@@ -92,9 +67,10 @@ function renderSignal(s) {
 }
 
 async function saveSignal(s) {
-  if (!db) return;
+  if (!db || !currentUser) return;
   try {
     await db.from("signals").insert([{
+      user_id: currentUser.id,
       pair: s.pair, direction: s.direction,
       confidence: String(s.confidence), rsi: s.rsi, macd: s.macd,
       candle1: s.predictions[0].label,
@@ -130,6 +106,6 @@ function setStatus(live) {
 
 function showError(msg) {
   document.getElementById("signal-card").className = "signal-card idle";
-  document.getElementById("signal-direction").textContent  = "ERR";
+  document.getElementById("signal-direction").textContent   = "ERR";
   document.getElementById("signal-pair-display").textContent = msg;
 }
