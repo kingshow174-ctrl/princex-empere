@@ -25,7 +25,7 @@ async function onGetSignal() {
     renderSignal(signal);
 
     // Track + start countdown immediately
-    const entry = addTrackedSignal(signal);
+    const entry = await addTrackedSignal(signal);
     startCountdown(entry, (result) => {
       renderStats();
       renderTrackerHistory();

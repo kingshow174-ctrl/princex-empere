@@ -1,6 +1,7 @@
 // ============================================
-// PRINCEX EMPERE — Signal Tracker v3
-// Countdown on every pending order in history
+// PRINCEX EMPERE — Signal Tracker v4
+// FIXED: Tracks exact entry price vs exit price
+// Entry = price at signal time, Exit = price at expiry
 // ============================================
 
 const TRACKER_KEY = "princex_signals";
@@ -15,8 +16,20 @@ function loadFromStorage() {
   } catch(e) { return []; }
 }
 
-function addTrackedSignal(signal) {
+async function addTrackedSignal(signal) {
   if (signal.direction !== "BUY" && signal.direction !== "SELL") return null;
+
+  // Capture EXACT entry price right now
+  let entryPrice = null;
+  try {
+    const symbol = signal.pair.replace("/", "");
+    const res  = await fetch(`https://api.twelvedata.com/price?symbol=${symbol}&apikey=${CONFIG.TWELVE_DATA_KEY}`);
+    const data = await res.json();
+    entryPrice = parseFloat(data.price);
+  } catch(e) {
+    console.warn("Could not fetch entry price:", e.message);
+  }
+
   const signals = loadFromStorage();
   const entry = {
     id: Date.now(),
@@ -26,8 +39,9 @@ function addTrackedSignal(signal) {
     pattern: signal.pattern,
     timestamp: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(),
-    status: "PENDING",
+    entryPrice: entryPrice,  // EXACT price when signal fired
     exitPrice: null,
+    status: "PENDING",
   };
   signals.unshift(entry);
   saveToStorage(signals.slice(0, 200));
@@ -49,7 +63,6 @@ function updateSignalResult(id, status, exitPrice) {
 function clearHistory() {
   if (confirm("Clear all signal history? This cannot be undone.")) {
     localStorage.removeItem(TRACKER_KEY);
-    // Stop all countdown intervals
     Object.values(historyIntervals).forEach(clearInterval);
     historyIntervals = {};
     renderStats();
@@ -103,17 +116,22 @@ function startCountdown(entry, onComplete) {
   const totalMs = 3 * 60 * 1000;
   const endTime = new Date(entry.expiresAt).getTime();
 
+  // Show entry price immediately
+  const entryLabel = entry.entryPrice
+    ? ` · ENTRY @ ${entry.entryPrice}`
+    : "";
+
   mainCountdownInterval = setInterval(async () => {
     const remaining = endTime - Date.now();
 
     if (remaining <= 0) {
       clearInterval(mainCountdownInterval);
       timerEl.textContent = "00:00";
-      statusEl.textContent = "⏳ CHECKING...";
+      statusEl.textContent = "⏳ FETCHING EXIT PRICE...";
       try {
         const result = await checkSignalResult(entry);
         updateSignalResult(entry.id, result.status, result.exitPrice);
-        showMainResult(result.status, bar, timerEl, statusEl);
+        showMainResult(result.status, result, bar, timerEl, statusEl);
         if (onComplete) onComplete(result.status);
       } catch(e) {
         statusEl.innerHTML = `
@@ -128,7 +146,8 @@ function startCountdown(entry, onComplete) {
     const secs = Math.floor((remaining % 60000) / 1000);
     const pct  = (remaining / totalMs) * 100;
     timerEl.textContent = `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
-    statusEl.textContent = `${entry.direction} ${entry.pair} · EXPIRING`;
+    statusEl.textContent = `${entry.direction} ${entry.pair}${entryLabel}`;
+
     if (fill) {
       fill.style.width = pct + "%";
       fill.style.background = pct > 50 ? "#00e676" : pct > 25 ? "#f5c842" : "#ff3b5c";
@@ -136,29 +155,23 @@ function startCountdown(entry, onComplete) {
   }, 500);
 }
 
-// ── PER-ROW COUNTDOWNS IN HISTORY ───────────
+// ── PER-ROW COUNTDOWNS ───────────────────────
 let historyIntervals = {};
 
 function startHistoryCountdowns() {
-  // Clear old intervals
   Object.values(historyIntervals).forEach(clearInterval);
   historyIntervals = {};
 
   const signals = loadFromStorage().filter(s => s.status === "PENDING");
 
   signals.forEach(entry => {
-    const el = document.getElementById(`timer-${entry.id}`);
-    if (!el) return;
-
     const endTime = new Date(entry.expiresAt).getTime();
 
     const tick = async () => {
-      const remaining = endTime - Date.now();
       const timerEl = document.getElementById(`timer-${entry.id}`);
-      if (!timerEl) {
-        clearInterval(historyIntervals[entry.id]);
-        return;
-      }
+      if (!timerEl) { clearInterval(historyIntervals[entry.id]); return; }
+
+      const remaining = endTime - Date.now();
 
       if (remaining <= 0) {
         clearInterval(historyIntervals[entry.id]);
@@ -168,49 +181,69 @@ function startHistoryCountdowns() {
           const result = await checkSignalResult(entry);
           updateSignalResult(entry.id, result.status, result.exitPrice);
         } catch(e) {
-          // Show manual buttons inside the row
           timerEl.innerHTML = `
-            <button onclick="manualResult('WIN',${entry.id})" style="background:#00e676;color:#000;border:none;padding:3px 10px;border-radius:4px;font-weight:700;margin-right:4px;cursor:pointer;font-size:10px">WIN</button>
-            <button onclick="manualResult('LOSS',${entry.id})" style="background:#ff3b5c;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-weight:700;cursor:pointer;font-size:10px">LOSS</button>
+            <button onclick="manualResult('WIN',${entry.id})" style="background:#00e676;color:#000;border:none;padding:3px 8px;border-radius:4px;font-weight:700;margin-right:3px;cursor:pointer;font-size:10px">WIN</button>
+            <button onclick="manualResult('LOSS',${entry.id})" style="background:#ff3b5c;color:#fff;border:none;padding:3px 8px;border-radius:4px;font-weight:700;cursor:pointer;font-size:10px">LOSS</button>
           `;
         }
         return;
       }
 
-      const mins = Math.floor(remaining / 60000);
-      const secs = Math.floor((remaining % 60000) / 1000);
-      const pct  = remaining / (3 * 60 * 1000);
+      const mins  = Math.floor(remaining / 60000);
+      const secs  = Math.floor((remaining % 60000) / 1000);
+      const pct   = remaining / (3 * 60 * 1000);
       const color = pct > 0.5 ? "#00e676" : pct > 0.25 ? "#f5c842" : "#ff3b5c";
-      timerEl.style.color = color;
-      timerEl.textContent = `⏱ ${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
+      timerEl.style.color  = color;
+      timerEl.textContent  = `⏱ ${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
     };
 
-    tick(); // run immediately
+    tick();
     historyIntervals[entry.id] = setInterval(tick, 1000);
   });
 }
 
+// ── RESULT CHECK — ENTRY vs EXIT ─────────────
 async function checkSignalResult(entry) {
   const symbol = entry.pair.replace("/", "");
-  const res  = await fetch(`https://api.twelvedata.com/price?symbol=${symbol}&apikey=${CONFIG.TWELVE_DATA_KEY}`);
-  const data = await res.json();
-  const exitPrice = parseFloat(data.price);
-  const res2 = await fetch(`https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1min&outputsize=4&apikey=${CONFIG.TWELVE_DATA_KEY}`);
-  const data2 = await res2.json();
-  const entryPrice = parseFloat(data2.values?.[data2.values.length-1]?.close || exitPrice);
+
+  // Get CURRENT price as exit price
+  const res1  = await fetch(`https://api.twelvedata.com/price?symbol=${symbol}&apikey=${CONFIG.TWELVE_DATA_KEY}`);
+  const data1 = await res1.json();
+  const exitPrice = parseFloat(data1.price);
+
+  // Use stored entry price (captured when signal fired)
+  const entryPrice = entry.entryPrice || exitPrice;
+
+  const priceDiff = exitPrice - entryPrice;
+  const pipDiff   = Math.abs(priceDiff);
+
   let status;
-  if (entry.direction === "BUY")  status = exitPrice >= entryPrice ? "WIN" : "LOSS";
-  else                            status = exitPrice <= entryPrice ? "WIN" : "LOSS";
-  return { status, exitPrice, entryPrice };
+  if (entry.direction === "BUY") {
+    // BUY wins if exit > entry
+    status = exitPrice > entryPrice ? "WIN" : "LOSS";
+  } else {
+    // SELL wins if exit < entry
+    status = exitPrice < entryPrice ? "WIN" : "LOSS";
+  }
+
+  return { status, exitPrice, entryPrice, priceDiff, pipDiff };
 }
 
-function showMainResult(status, bar, timerEl, statusEl) {
-  const win = status === "WIN";
+function showMainResult(status, result, bar, timerEl, statusEl) {
+  const win  = status === "WIN";
+  const diff = result.priceDiff >= 0 ? `+${result.priceDiff.toFixed(5)}` : result.priceDiff.toFixed(5);
+
   bar.style.border     = `2px solid ${win ? "#00e676" : "#ff3b5c"}`;
   timerEl.textContent  = win ? "WIN ✅" : "LOSS ❌";
   timerEl.style.color  = win ? "#00e676" : "#ff3b5c";
-  statusEl.textContent = win ? "🎯 SIGNAL WON!" : "❌ SIGNAL LOST";
-  setTimeout(() => { bar.style.display = "none"; timerEl.style.color = ""; }, 5000);
+  statusEl.textContent = win
+    ? `🎯 WON! Entry ${result.entryPrice?.toFixed(5)} → Exit ${result.exitPrice?.toFixed(5)} (${diff})`
+    : `❌ LOST. Entry ${result.entryPrice?.toFixed(5)} → Exit ${result.exitPrice?.toFixed(5)} (${diff})`;
+
+  setTimeout(() => {
+    bar.style.display  = "none";
+    timerEl.style.color = "";
+  }, 6000);
 }
 
 function manualResult(status, id) {
@@ -218,7 +251,10 @@ function manualResult(status, id) {
   const bar      = document.getElementById("countdown-bar");
   const timerEl  = document.getElementById("countdown-timer");
   const statusEl = document.getElementById("countdown-status");
-  if (bar && timerEl && statusEl) showMainResult(status, bar, timerEl, statusEl);
+  if (bar && timerEl && statusEl) {
+    showMainResult(status, { priceDiff: 0, entryPrice: null, exitPrice: null },
+      bar, timerEl, statusEl);
+  }
 }
 
 function renderStats() {
@@ -278,7 +314,14 @@ function renderTrackerHistory() {
   signals.forEach(s => {
     const item = document.createElement("div");
     item.className = "history-item";
+    item.style.flexWrap = "wrap";
+    item.style.gap = "4px";
     const time = new Date(s.timestamp).toLocaleTimeString();
+
+    // Price info
+    const priceInfo = s.entryPrice
+      ? `<span style="font-size:9px;color:var(--muted);font-family:monospace;width:100%">@ ${s.entryPrice?.toFixed(5)} → ${s.exitPrice ? s.exitPrice.toFixed(5) : '...'}</span>`
+      : "";
 
     let statusHtml = "";
     if (s.status === "WIN") {
@@ -286,14 +329,13 @@ function renderTrackerHistory() {
     } else if (s.status === "LOSS") {
       statusHtml = `<span style="color:#ff3b5c;font-weight:700;font-family:monospace">❌ LOSS</span>`;
     } else {
-      // PENDING — show live countdown
       const remaining = new Date(s.expiresAt).getTime() - Date.now();
       if (remaining > 0) {
         statusHtml = `<span id="timer-${s.id}" style="font-family:monospace;font-size:12px;font-weight:700;color:#00e676">⏱ --:--</span>`;
       } else {
-        statusHtml = `<span style="color:#f5c842;font-family:monospace;font-size:11px">
-          <button onclick="manualResult('WIN',${s.id})" style="background:#00e676;color:#000;border:none;padding:3px 8px;border-radius:4px;font-weight:700;margin-right:3px;cursor:pointer;font-size:10px">WIN</button>
-          <button onclick="manualResult('LOSS',${s.id})" style="background:#ff3b5c;color:#fff;border:none;padding:3px 8px;border-radius:4px;font-weight:700;cursor:pointer;font-size:10px">LOSS</button>
+        statusHtml = `<span style="font-size:10px">
+          <button onclick="manualResult('WIN',${s.id})" style="background:#00e676;color:#000;border:none;padding:3px 8px;border-radius:4px;font-weight:700;margin-right:3px;cursor:pointer">WIN</button>
+          <button onclick="manualResult('LOSS',${s.id})" style="background:#ff3b5c;color:#fff;border:none;padding:3px 8px;border-radius:4px;font-weight:700;cursor:pointer">LOSS</button>
         </span>`;
       }
     }
@@ -303,10 +345,10 @@ function renderTrackerHistory() {
       <span class="h-dir ${s.direction.toLowerCase()}">${s.direction}</span>
       ${statusHtml}
       <span class="h-time">${time}</span>
+      ${priceInfo}
     `;
     el.appendChild(item);
   });
 
-  // Start per-row countdowns after DOM is updated
   setTimeout(startHistoryCountdowns, 50);
 }
