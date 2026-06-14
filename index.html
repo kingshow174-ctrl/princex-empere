@@ -24,35 +24,23 @@
     </div>
     <div class="status-bar">
       <span class="live-dot"></span>
-      <span id="status-text">CONNECTING...</span>
+      <span id="status-text">LIVE</span>
     </div>
   </header>
 
-  <!-- STATS PANEL -->
+  <!-- WIN RATE STATS -->
   <section class="stats-section">
-    <p class="section-label">📈 WIN RATE</p>
+    <p class="section-label">📈 WIN RATE · BUY/SELL ONLY</p>
     <div id="stats-panel">
       <div class="stats-grid">
-        <div class="stat-box">
-          <p class="stat-label">TODAY</p>
-          <p class="stat-rate">--%</p>
-          <p class="stat-total">0 signals</p>
-        </div>
-        <div class="stat-box">
-          <p class="stat-label">THIS WEEK</p>
-          <p class="stat-rate">--%</p>
-          <p class="stat-total">0 signals</p>
-        </div>
-        <div class="stat-box">
-          <p class="stat-label">ALL TIME</p>
-          <p class="stat-rate">--%</p>
-          <p class="stat-total">0 signals</p>
-        </div>
+        <div class="stat-box"><p class="stat-label">TODAY</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
+        <div class="stat-box"><p class="stat-label">THIS WEEK</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
+        <div class="stat-box"><p class="stat-label">ALL TIME</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
       </div>
     </div>
   </section>
 
-  <!-- COUNTDOWN BAR -->
+  <!-- COUNTDOWN -->
   <div id="countdown-bar" style="display:none">
     <div id="countdown-fill"></div>
     <div class="countdown-info">
@@ -61,16 +49,19 @@
     </div>
   </div>
 
+  <!-- PAIRS -->
   <section class="pair-section">
     <p class="section-label">SELECT PAIR</p>
     <div class="pair-grid" id="pair-grid"></div>
   </section>
 
+  <!-- CHART -->
   <section class="chart-section">
     <p class="section-label">📊 LIVE CHART · 1MIN</p>
     <div id="tradingview-widget"></div>
   </section>
 
+  <!-- SIGNAL -->
   <section class="signal-section">
     <div id="signal-card" class="signal-card idle">
       <p class="signal-label">SIGNAL</p>
@@ -87,10 +78,14 @@
     <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
   </section>
 
+  <!-- HISTORY + CLEAR -->
   <section class="history-section">
-    <p class="section-label">📋 SIGNAL HISTORY</p>
+    <div class="history-header">
+      <p class="section-label" style="margin:0">📋 SIGNAL HISTORY</p>
+      <button class="btn-clear" onclick="clearHistory()">🗑 CLEAR</button>
+    </div>
     <div id="history-list">
-      <p class="empty-msg">No signals yet. Hit GET SIGNAL to start.</p>
+      <p class="empty-msg">No BUY/SELL signals yet.</p>
     </div>
   </section>
 
@@ -102,13 +97,9 @@
   <script src="signal.js"></script>
   <script src="chart.js"></script>
   <script src="app.js"></script>
-
   <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(e => console.warn(e));
-      });
-    }
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker.register("/sw.js").catch(()=>{});
   </script>
 </body>
 </html>
