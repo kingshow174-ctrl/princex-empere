@@ -4,9 +4,9 @@ const app     = express();
 
 app.get("/config.js", (req, res) => {
   const config = {
-    TWELVE_DATA_KEY:   process.env.TWELVE_DATA_KEY  || "f9fe5a3fdd2643348aed717f46360ba3",
-    SUPABASE_URL:      process.env.SUPABASE_URL      || "https://hyqcinqbjyhwdbpgnejs.supabase.co",
-    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5cWNpbnFianlod2RicGduZWpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjAxMjQsImV4cCI6MjA5NjkzNjEyNH0.CWcJ7GYKSAYi5zmD4QNatC6xZ85WTwoUw9OEHvbKbzs",
+    TWELVE_DATA_KEY:   "f9fe5a3fdd2643348aed717f46360ba3",
+    SUPABASE_URL:      "https://hyqcinqbjyhwdbpgnejs.supabase.co",
+    SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5cWNpbnFianlod2RicGduZWpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjAxMjQsImV4cCI6MjA5NjkzNjEyNH0.CWcJ7GYKSAYi5zmD4QNatC6xZ85WTwoUw9OEHvbKbzs",
     INTERVAL:          "1min",
     CANDLES_BACK:      50,
     EXPIRY_CANDLES:    3
