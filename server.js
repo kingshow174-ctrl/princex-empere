@@ -3,17 +3,13 @@ const path    = require("path");
 const app     = express();
 
 app.get("/config.js", (req, res) => {
-  const TWELVE   = process.env.TWELVE_DATA_KEY   || "f9fe5a3fdd2643348aed717f46360ba3";
-  const SB_URL   = process.env.SUPABASE_URL       || "https://hyqcinqbjyhwdbpgnejs.supabase.co";
-  const SB_KEY   = process.env.SUPABASE_ANON_KEY  || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5cWNpbnFianlod2JwZ25lanMiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczMzA2NTYyNCwiZXhwIjoyMDQ4NjQxNjI0fQ.CWcJ7GYKSAYi5zmD4QNatC6xZ85WTwoUw90EHvbKbzs";
-
   const config = {
-    TWELVE_DATA_KEY:  TWELVE,
-    SUPABASE_URL:     SB_URL,
-    SUPABASE_ANON_KEY: SB_KEY,
-    INTERVAL:         "1min",
-    CANDLES_BACK:     50,
-    EXPIRY_CANDLES:   3
+    TWELVE_DATA_KEY:   process.env.TWELVE_DATA_KEY  || "f9fe5a3fdd2643348aed717f46360ba3",
+    SUPABASE_URL:      process.env.SUPABASE_URL      || "https://hyqcinqbjyhwdbpgnejs.supabase.co",
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5cWNpbnFianlod2RicGduZWpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjAxMjQsImV4cCI6MjA5NjkzNjEyNH0.CWcJ7GYKSAYi5zmD4QNatC6xZ85WTwoUw9OEHvbKbzs",
+    INTERVAL:          "1min",
+    CANDLES_BACK:      50,
+    EXPIRY_CANDLES:    3
   };
 
   const pairs = [
@@ -53,17 +49,17 @@ app.get("/config.js", (req, res) => {
     "});"
   ].join("\n");
 
-  res.setHeader("Content-Type","application/javascript");
+  res.setHeader("Content-Type", "application/javascript");
   res.send(js);
 });
 
 app.use(express.static(path.join(__dirname)));
-app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"index.html")));
-app.get("/health",(req,res)=>res.send("OK"));
+app.get("*", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/health", (req, res) => res.send("OK"));
 
-setInterval(()=>{
-  fetch("https://princex-empere.onrender.com/health").catch(()=>{});
-},14*60*1000);
+setInterval(() => {
+  fetch("https://princex-empere.onrender.com/health").catch(() => {});
+}, 14 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>console.log("PRINCEX EMPERE live on port "+PORT));
+app.listen(PORT, () => console.log("PRINCEX EMPERE live on port " + PORT));
