@@ -4,15 +4,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>PRINCEX EMPERE</title>
-
-  <!-- PWA -->
   <link rel="manifest" href="/manifest.json"/>
   <meta name="theme-color" content="#f5c842"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="PRINCEX"/>
-  <link rel="apple-touch-icon" href="/icon-192.png"/>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
@@ -32,6 +27,39 @@
       <span id="status-text">CONNECTING...</span>
     </div>
   </header>
+
+  <!-- STATS PANEL -->
+  <section class="stats-section">
+    <p class="section-label">📈 WIN RATE</p>
+    <div id="stats-panel">
+      <div class="stats-grid">
+        <div class="stat-box">
+          <p class="stat-label">TODAY</p>
+          <p class="stat-rate">--%</p>
+          <p class="stat-total">0 signals</p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">THIS WEEK</p>
+          <p class="stat-rate">--%</p>
+          <p class="stat-total">0 signals</p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">ALL TIME</p>
+          <p class="stat-rate">--%</p>
+          <p class="stat-total">0 signals</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COUNTDOWN BAR -->
+  <div id="countdown-bar" style="display:none">
+    <div id="countdown-fill"></div>
+    <div class="countdown-info">
+      <span id="countdown-timer">03:00</span>
+      <span id="countdown-status">SIGNAL ACTIVE</span>
+    </div>
+  </div>
 
   <section class="pair-section">
     <p class="section-label">SELECT PAIR</p>
@@ -70,20 +98,17 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="tracker.js"></script>
   <script src="signal.js"></script>
   <script src="chart.js"></script>
   <script src="app.js"></script>
 
-  <!-- Register Service Worker -->
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js")
-          .then(() => console.log("PWA ready"))
-          .catch(e => console.warn("SW failed:", e));
+        navigator.serviceWorker.register("/sw.js").catch(e => console.warn(e));
       });
     }
   </script>
-
 </body>
 </html>

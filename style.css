@@ -286,3 +286,59 @@ section { padding: 16px 20px; }
   margin-bottom: 12px;
   line-height: 1.5;
 }
+
+/* STATS */
+.stats-section { padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.stats-grid { display: flex; gap: 8px; }
+.stat-box {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 8px;
+  text-align: center;
+}
+.stat-label { font-family: var(--font-display); font-size: 8px; color: var(--muted); letter-spacing: 1px; margin-bottom: 4px; }
+.stat-rate { font-family: var(--font-display); font-size: 22px; font-weight: 900; margin-bottom: 2px; color: var(--muted); }
+.stat-rate.win { color: var(--green); }
+.stat-rate.loss { color: var(--red); }
+.stat-total { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+
+/* COUNTDOWN */
+#countdown-bar {
+  margin: 0 20px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: sticky;
+  top: 65px;
+  z-index: 99;
+}
+#countdown-fill {
+  height: 4px;
+  width: 100%;
+  background: var(--green);
+  transition: width 0.5s linear, background 0.5s;
+}
+.countdown-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+}
+#countdown-timer {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+#countdown-status {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-align: right;
+  max-width: 60%;
+}
