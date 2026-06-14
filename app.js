@@ -2,10 +2,20 @@ let autoScanTimer = null;
 let isAutoScan    = false;
 let db            = null;
 
+// Attach buttons once on page load
+document.addEventListener("DOMContentLoaded", () => {
+  const btnSignal = document.getElementById("btn-get-signal");
+  const btnAuto   = document.getElementById("btn-auto");
+  if (btnSignal) btnSignal.addEventListener("click", onGetSignal);
+  if (btnAuto)   btnAuto.addEventListener("click", onToggleAuto);
+});
+
 async function onGetSignal() {
   const btn = document.getElementById("btn-get-signal");
+  if (!btn || btn.disabled) return;
   btn.disabled = true;
   btn.textContent = "⏳ ANALYSING...";
+
   try {
     const signal = await generateSignal(window.selectedPair || "EUR/USD");
     renderSignal(signal);
@@ -17,6 +27,7 @@ async function onGetSignal() {
     saveSignal(signal);
   } catch(err) {
     showError("Error: " + err.message);
+    console.error(err);
   } finally {
     btn.disabled = false;
     btn.textContent = "⚡ GET SIGNAL";
@@ -36,7 +47,7 @@ function renderSignal(s) {
     box.textContent = `C${i+1}: ${p.label}`;
   });
 
-  const opt  = EXPIRY_OPTIONS.find(o => o.value === selectedExpiry);
+  const opt  = typeof EXPIRY_OPTIONS !== "undefined" ? EXPIRY_OPTIONS.find(o => o.value === selectedExpiry) : null;
   const note = document.getElementById("expiry-note");
   if (note && opt) note.textContent = `1 MIN · ${opt.candles} CANDLES · ${opt.label} EXPIRY`;
 
@@ -67,10 +78,9 @@ function renderSignal(s) {
 }
 
 async function saveSignal(s) {
-  if (!db || !currentUser) return;
+  if (!db) return;
   try {
     await db.from("signals").insert([{
-      user_id: currentUser.id,
       pair: s.pair, direction: s.direction,
       confidence: String(s.confidence), rsi: s.rsi, macd: s.macd,
       candle1: s.predictions[0].label,
@@ -88,7 +98,8 @@ function onToggleAuto() {
     btn.textContent = "⏹ STOP AUTO SCAN";
     btn.classList.add("active");
     onGetSignal();
-    autoScanTimer = setInterval(onGetSignal, selectedExpiry * 60 * 1000);
+    const expiry = typeof selectedExpiry !== "undefined" ? selectedExpiry : 3;
+    autoScanTimer = setInterval(onGetSignal, expiry * 60 * 1000);
   } else {
     btn.textContent = "🔄 AUTO SCAN";
     btn.classList.remove("active");
@@ -105,7 +116,10 @@ function setStatus(live) {
 }
 
 function showError(msg) {
-  document.getElementById("signal-card").className = "signal-card idle";
-  document.getElementById("signal-direction").textContent   = "ERR";
-  document.getElementById("signal-pair-display").textContent = msg;
+  const card = document.getElementById("signal-card");
+  if (card) card.className = "signal-card idle";
+  const dir = document.getElementById("signal-direction");
+  const dis = document.getElementById("signal-pair-display");
+  if (dir) dir.textContent = "ERR";
+  if (dis) dis.textContent = msg;
 }
