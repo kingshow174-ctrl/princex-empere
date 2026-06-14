@@ -28,14 +28,14 @@
     </div>
   </header>
 
-  <!-- WIN RATE STATS -->
+  <!-- STATS -->
   <section class="stats-section">
-    <p class="section-label">📈 WIN RATE · BUY/SELL ONLY</p>
+    <p class="section-label">📈 SIGNALS COUNT</p>
     <div id="stats-panel">
       <div class="stats-grid">
-        <div class="stat-box"><p class="stat-label">TODAY</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
-        <div class="stat-box"><p class="stat-label">THIS WEEK</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
-        <div class="stat-box"><p class="stat-label">ALL TIME</p><p class="stat-rate">--</p><p class="stat-total">0 traded</p></div>
+        <div class="stat-box"><p class="stat-label">TODAY</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
+        <div class="stat-box"><p class="stat-label">THIS WEEK</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
+        <div class="stat-box"><p class="stat-label">ALL TIME</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
       </div>
     </div>
   </section>
@@ -48,6 +48,12 @@
       <span id="countdown-status">SIGNAL ACTIVE</span>
     </div>
   </div>
+
+  <!-- EXPIRY SELECTOR -->
+  <section class="expiry-section">
+    <p class="section-label">⏱ SELECT EXPIRY</p>
+    <div id="expiry-selector" class="expiry-grid"></div>
+  </section>
 
   <!-- PAIRS -->
   <section class="pair-section">
@@ -72,20 +78,20 @@
         <div class="candle-box" id="c2">C2: --</div>
         <div class="candle-box" id="c3">C3: --</div>
       </div>
-      <p class="expiry-note">1 MIN · 3 CANDLES · 3 MIN EXPIRY</p>
+      <p class="expiry-note" id="expiry-note">1 MIN · 3 CANDLES · 3 MIN EXPIRY</p>
     </div>
     <button class="btn-signal" id="btn-get-signal">⚡ GET SIGNAL</button>
     <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
   </section>
 
-  <!-- HISTORY + CLEAR -->
+  <!-- HISTORY -->
   <section class="history-section">
     <div class="history-header">
       <p class="section-label" style="margin:0">📋 SIGNAL HISTORY</p>
       <button class="btn-clear" onclick="clearHistory()">🗑 CLEAR</button>
     </div>
     <div id="history-list">
-      <p class="empty-msg">No BUY/SELL signals yet.</p>
+      <p class="empty-msg">No signals yet.</p>
     </div>
   </section>
 
@@ -93,6 +99,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="expiry.js"></script>
   <script src="tracker.js"></script>
   <script src="signal.js"></script>
   <script src="chart.js"></script>

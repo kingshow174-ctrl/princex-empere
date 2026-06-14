@@ -1,6 +1,6 @@
 let autoScanTimer = null;
-let isAutoScan = false;
-let db = null;
+let isAutoScan    = false;
+let db            = null;
 
 try {
   db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
@@ -9,6 +9,7 @@ try {
 window.addEventListener("load", () => {
   setTimeout(() => loadTradingViewChart("FX:EURUSD"), 1000);
   setStatus(true);
+  renderExpirySelector();
   renderStats();
   renderTrackerHistory();
   document.getElementById("btn-get-signal").addEventListener("click", onGetSignal);
@@ -24,18 +25,18 @@ async function onGetSignal() {
     const signal = await generateSignal(window.selectedPair || "EUR/USD");
     renderSignal(signal);
 
-    // Track + start countdown immediately
-    const entry = await addTrackedSignal(signal);
-    startCountdown(entry, (result) => {
-      renderStats();
-      renderTrackerHistory();
-    });
+    if (signal.direction === "BUY" || signal.direction === "SELL") {
+      const entry = addTrackedSignal(signal);
+      if (entry) {
+        startCountdown(entry);
+        renderStats();
+        renderTrackerHistory();
+      }
+    }
 
-    renderStats();
-    renderTrackerHistory();
     setStatus(true);
     saveSignal(signal);
-  } catch (err) {
+  } catch(err) {
     showError("Error: " + err.message);
     console.error(err);
   } finally {
@@ -46,22 +47,27 @@ async function onGetSignal() {
 
 function renderSignal(s) {
   const card = document.getElementById("signal-card");
-  card.className = "signal-card " + (s.direction === "BUY" ? "buy" : s.direction === "SELL" ? "sell" : "idle");
+  card.className = "signal-card " + (s.direction==="BUY"?"buy":s.direction==="SELL"?"sell":"idle");
   document.getElementById("signal-direction").textContent = s.direction;
   document.getElementById("signal-pair-display").textContent =
     `${s.pair} · ${s.biasLabel} · ${s.confidence}%`;
 
-  ["c1","c2","c3"].forEach((id, i) => {
+  ["c1","c2","c3"].forEach((id,i) => {
     const box = document.getElementById(id);
-    const p = s.predictions[i];
-    box.className = "candle-box " + (p.type === "bull" ? "bull" : p.type === "bear" ? "bear" : "doji");
+    const p   = s.predictions[i];
+    box.className   = "candle-box " + (p.type==="bull"?"bull":p.type==="bear"?"bear":"doji");
     box.textContent = `C${i+1}: ${p.label}`;
   });
+
+  // Update expiry note
+  const opt  = EXPIRY_OPTIONS.find(o => o.value === selectedExpiry);
+  const note = document.getElementById("expiry-note");
+  if (note && opt) note.textContent = `1 MIN · ${opt.candles} CANDLES · ${opt.label} EXPIRY`;
 
   let panel = document.getElementById("sniper-panel");
   if (!panel) {
     panel = document.createElement("div");
-    panel.id = "sniper-panel";
+    panel.id        = "sniper-panel";
     panel.className = "sniper-panel";
     card.appendChild(panel);
   }
@@ -106,7 +112,7 @@ function onToggleAuto() {
     btn.textContent = "⏹ STOP AUTO SCAN";
     btn.classList.add("active");
     onGetSignal();
-    autoScanTimer = setInterval(onGetSignal, 60000);
+    autoScanTimer = setInterval(onGetSignal, selectedExpiry * 60 * 1000);
   } else {
     btn.textContent = "🔄 AUTO SCAN";
     btn.classList.remove("active");
@@ -124,6 +130,6 @@ function setStatus(live) {
 
 function showError(msg) {
   document.getElementById("signal-card").className = "signal-card idle";
-  document.getElementById("signal-direction").textContent = "ERR";
+  document.getElementById("signal-direction").textContent  = "ERR";
   document.getElementById("signal-pair-display").textContent = msg;
 }

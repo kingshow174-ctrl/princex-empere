@@ -21,7 +21,7 @@ function addTrackedSignal(signal) {
     pair: signal.pair,
     direction: signal.direction,
     timestamp: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + getExpiryMs()).toISOString(),
   };
   signals.unshift(entry);
   saveToStorage(signals.slice(0, 200));
