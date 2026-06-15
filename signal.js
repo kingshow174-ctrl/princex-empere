@@ -1,19 +1,18 @@
-// ============================================
-// PRINCEX EMPERE — Signal Engine v5
-// Fixed: unbiased bull/bear scoring
-// ============================================
+// PRINCEX EMPERE — Signal Engine v6
 
 async function fetchCandles(pair) {
-  const symbol = pair.replace("/", "");
-  let apiSymbol = symbol;
-  if (pair === "XAU/USD") apiSymbol = "XAU/USD";
-  if (pair === "BTC/USD") apiSymbol = "BTC/USD";
-  if (pair === "ETH/USD") apiSymbol = "ETH/USD";
+  // Twelve Data forex format: EUR/USD stays as EUR/USD
+  // Crypto: BTC/USD, ETH/USD also fine
+  // Gold: XAU/USD fine
+  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=1min&outputsize=50&apikey=${CONFIG.TWELVE_DATA_KEY}`;
 
-  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(apiSymbol)}&interval=1min&outputsize=50&apikey=${CONFIG.TWELVE_DATA_KEY}`;
   const res  = await fetch(url);
   const data = await res.json();
-  if (data.status === "error" || !data.values) throw new Error(data.message || "Fetch failed for " + pair);
+
+  if (data.status === "error" || !data.values) {
+    throw new Error(data.message || "Fetch failed for " + pair);
+  }
+
   return data.values.reverse().map(c => ({
     open:  parseFloat(c.open),
     high:  parseFloat(c.high),
@@ -29,9 +28,7 @@ function calcEMA(arr, period) {
   if (arr.length < period) return arr[arr.length - 1];
   const k = 2 / (period + 1);
   let ema = arr.slice(0, period).reduce((a,b) => a+b, 0) / period;
-  for (let i = period; i < arr.length; i++) {
-    ema = arr[i] * k + ema * (1 - k);
-  }
+  for (let i = period; i < arr.length; i++) ema = arr[i] * k + ema * (1 - k);
   return ema;
 }
 
@@ -40,34 +37,27 @@ function calcRSI(closes, period = 14) {
   let gains = 0, losses = 0;
   for (let i = closes.length - period; i < closes.length; i++) {
     const d = closes[i] - closes[i - 1];
-    if (d > 0) gains += d;
-    else losses += Math.abs(d);
+    if (d > 0) gains += d; else losses += Math.abs(d);
   }
   const avgGain = gains / period;
   const avgLoss = losses / period;
   if (avgLoss === 0) return 100;
   if (avgGain === 0) return 0;
-  const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
+  return 100 - (100 / (1 + avgGain / avgLoss));
 }
 
 function calcMACD(closes) {
-  // Need at least 26 candles
   if (closes.length < 26) return { macd: 0, signal: 0, hist: 0 };
   const ema12 = calcEMA(closes, 12);
   const ema26 = calcEMA(closes, 26);
   const macdLine = ema12 - ema26;
-
-  // Signal = EMA9 of MACD values
   const macdValues = [];
   for (let i = 26; i <= closes.length; i++) {
-    const slice = closes.slice(0, i);
-    macdValues.push(calcEMA(slice, 12) - calcEMA(slice, 26));
+    const s = closes.slice(0, i);
+    macdValues.push(calcEMA(s, 12) - calcEMA(s, 26));
   }
   const signalLine = calcEMA(macdValues, 9);
-  const hist = macdLine - signalLine;
-
-  return { macd: macdLine, signal: signalLine, hist };
+  return { macd: macdLine, signal: signalLine, hist: macdLine - signalLine };
 }
 
 function calcBollinger(closes, period = 20) {
@@ -91,24 +81,16 @@ function calcADX(candles, period = 14) {
   if (candles.length < period + 1) return 25;
   let trSum = 0;
   for (let i = candles.length - period; i < candles.length; i++) {
-    const c    = candles[i];
-    const prev = candles[i-1];
-    const tr   = Math.max(
-      c.high - c.low,
-      Math.abs(c.high - prev.close),
-      Math.abs(c.low  - prev.close)
-    );
-    trSum += tr;
+    const c = candles[i], prev = candles[i-1];
+    trSum += Math.max(c.high-c.low, Math.abs(c.high-prev.close), Math.abs(c.low-prev.close));
   }
-  return (trSum / period) * 1000; // scaled for display
+  return (trSum / period) * 1000;
 }
 
 function calcVWAP(candles) {
-  const tp  = candles.map(c => (c.high + c.low + c.close) / 3);
+  const tp = candles.map(c => (c.high + c.low + c.close) / 3);
   return tp.reduce((a,b) => a+b, 0) / tp.length;
 }
-
-// ── CANDLE PATTERN ───────────────────────────
 
 function identifyPattern(candles) {
   const c  = candles[candles.length - 1];
@@ -122,33 +104,21 @@ function identifyPattern(candles) {
 
   if (body < range * 0.1) return { name: "DOJI", bias: "neutral", strength: 0 };
   if (lowerW > body * 2 && upperW < body * 0.3)
-    return isBull
-      ? { name: "HAMMER 🔨", bias: "bull", strength: 15 }
-      : { name: "HANGING MAN", bias: "bear", strength: 10 };
+    return isBull ? { name: "HAMMER 🔨", bias: "bull", strength: 15 } : { name: "HANGING MAN", bias: "bear", strength: 10 };
   if (upperW > body * 2 && lowerW < body * 0.3)
-    return isBull
-      ? { name: "INV HAMMER", bias: "bull", strength: 8 }
-      : { name: "SHOOTING STAR ⭐", bias: "bear", strength: 15 };
+    return isBull ? { name: "INV HAMMER", bias: "bull", strength: 8 } : { name: "SHOOTING STAR ⭐", bias: "bear", strength: 15 };
   if (isBull && p.close < p.open && c.open <= p.close && c.close >= p.open)
     return { name: "BULL ENGULF 🟢", bias: "bull", strength: 20 };
   if (!isBull && p.close > p.open && c.open >= p.close && c.close <= p.open)
     return { name: "BEAR ENGULF 🔴", bias: "bear", strength: 20 };
   if (body > range * 0.85)
-    return isBull
-      ? { name: "BULL MARUBOZU", bias: "bull", strength: 18 }
-      : { name: "BEAR MARUBOZU", bias: "bear", strength: 18 };
+    return isBull ? { name: "BULL MARUBOZU", bias: "bull", strength: 18 } : { name: "BEAR MARUBOZU", bias: "bear", strength: 18 };
   if (pp && p && [pp,p,c].every(x => x.close > x.open))
     return { name: "3 SOLDIERS 🟢🟢🟢", bias: "bull", strength: 22 };
   if (pp && p && [pp,p,c].every(x => x.close < x.open))
     return { name: "3 CROWS 🔴🔴🔴", bias: "bear", strength: 22 };
-  return {
-    name: isBull ? "BULL CANDLE" : "BEAR CANDLE",
-    bias: isBull ? "bull" : "bear",
-    strength: 5
-  };
+  return { name: isBull ? "BULL CANDLE" : "BEAR CANDLE", bias: isBull ? "bull" : "bear", strength: 5 };
 }
-
-// ── BUYER/SELLER PRESSURE ────────────────────
 
 function buyerSellerPressure(candles) {
   const last = candles.slice(-10);
@@ -163,14 +133,11 @@ function buyerSellerPressure(candles) {
   return { buyers, sellers: 100 - buyers };
 }
 
-// ── MAIN SIGNAL — BALANCED SCORING ──────────
-
 async function generateSignal(pair) {
   const candles = await fetchCandles(pair);
   const closes  = candles.map(c => c.close);
   const last    = candles[candles.length - 1];
 
-  // Calculate all indicators
   const rsi     = calcRSI(closes);
   const macdR   = calcMACD(closes);
   const ema9    = calcEMA(closes, 9);
@@ -183,71 +150,43 @@ async function generateSignal(pair) {
   const pattern = identifyPattern(candles);
   const press   = buyerSellerPressure(candles);
 
-  // ── SCORING: each indicator gives +bull or +bear ──
   let bullPts = 0, bearPts = 0;
 
-  // 1. RSI (max 20pts)
   if      (rsi <= 20) bullPts += 20;
   else if (rsi <= 35) bullPts += 14;
   else if (rsi <= 45) bullPts += 7;
   else if (rsi >= 80) bearPts += 20;
   else if (rsi >= 65) bearPts += 14;
   else if (rsi >= 55) bearPts += 7;
-  // RSI 45-55 = neutral, no points
 
-  // 2. MACD histogram (max 20pts)
-  if (macdR.hist > 0)  bullPts += 20;
-  else if (macdR.hist < 0) bearPts += 20;
+  if (macdR.hist > 0)  bullPts += 20; else bearPts += 20;
+  if (ema9 > ema21)    bullPts += 15; else bearPts += 15;
+  if (ema21 > ema50)   bullPts += 10; else bearPts += 10;
 
-  // 3. EMA 9 vs 21 (max 15pts)
-  if (ema9 > ema21)  bullPts += 15;
-  else               bearPts += 15;
+  if (last.close <= bb.lower)       bullPts += 15;
+  else if (last.close >= bb.upper)  bearPts += 15;
 
-  // 4. EMA 21 vs 50 — trend (max 10pts)
-  if (ema21 > ema50) bullPts += 10;
-  else               bearPts += 10;
-
-  // 5. Bollinger (max 15pts)
-  if (last.close <= bb.lower)  bullPts += 15;
-  else if (last.close >= bb.upper) bearPts += 15;
-  // Middle zone = neutral
-
-  // 6. Stochastic (max 10pts)
   if      (stoch <= 20) bullPts += 10;
   else if (stoch <= 35) bullPts += 5;
   else if (stoch >= 80) bearPts += 10;
   else if (stoch >= 65) bearPts += 5;
 
-  // 7. VWAP (max 10pts)
-  if (last.close > vwap) bullPts += 10;
-  else                   bearPts += 10;
+  if (last.close > vwap) bullPts += 10; else bearPts += 10;
 
-  // 8. Candle pattern (max 22pts)
   if (pattern.bias === "bull") bullPts += pattern.strength;
   else if (pattern.bias === "bear") bearPts += pattern.strength;
 
-  // 9. Buyer/seller pressure (max 10pts)
-  if (press.buyers > 60)  bullPts += 10;
-  else if (press.buyers < 40) bearPts += 10;
+  if (press.buyers > 60)       bullPts += 10;
+  else if (press.buyers < 40)  bearPts += 10;
 
-  // ── TOTALS ──
   const total   = bullPts + bearPts || 1;
   const bullPct = Math.round((bullPts / total) * 100);
   const bearPct = 100 - bullPct;
 
-  // ── DIRECTION — needs clear majority ──
-  let direction = "WAIT";
-  let biasLabel = "NEUTRAL";
+  let direction = "WAIT", biasLabel = "NEUTRAL";
+  if (bullPct >= 62)      { direction = "BUY";  biasLabel = bullPct >= 78 ? "STRONG BULL" : "BULL"; }
+  else if (bearPct >= 62) { direction = "SELL"; biasLabel = bearPct >= 78 ? "STRONG BEAR" : "BEAR"; }
 
-  if (bullPct >= 62) {
-    direction = "BUY";
-    biasLabel = bullPct >= 78 ? "STRONG BULL" : "BULL";
-  } else if (bearPct >= 62) {
-    direction = "SELL";
-    biasLabel = bearPct >= 78 ? "STRONG BEAR" : "BEAR";
-  }
-
-  // ── CANDLE PREDICTIONS ──
   const c1Conf = Math.max(bullPct, bearPct);
   const c2Conf = Math.round(c1Conf * 0.82);
   const c3Conf = Math.round(c1Conf * 0.67);
@@ -261,18 +200,16 @@ async function generateSignal(pair) {
 
   return {
     pair, direction, biasLabel,
-    bullScore: bullPct,
-    bearScore: bearPct,
-    buyers:    press.buyers,
-    sellers:   press.sellers,
-    rsi:       rsi.toFixed(1),
-    macd:      macdR.macd.toFixed(5),
-    macdHist:  macdR.hist > 0 ? "BULL" : "BEAR",
-    emaCross:  ema9 > ema21 ? "BULL" : "BEAR",
-    stoch:     stoch.toFixed(1),
-    adx:       adx.toFixed(1),
+    bullScore: bullPct, bearScore: bearPct,
+    buyers: press.buyers, sellers: press.sellers,
+    rsi: rsi.toFixed(1),
+    macd: macdR.macd.toFixed(5),
+    macdHist: macdR.hist > 0 ? "BULL" : "BEAR",
+    emaCross: ema9 > ema21 ? "BULL" : "BEAR",
+    stoch: stoch.toFixed(1),
+    adx: adx.toFixed(1),
     priceVwap: last.close > vwap ? "ABOVE" : "BELOW",
-    pattern:   pattern.name,
+    pattern: pattern.name,
     confidence: c1Conf,
     predictions: [
       candleLabel(c1Conf, direction),
