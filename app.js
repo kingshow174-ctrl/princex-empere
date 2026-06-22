@@ -2,7 +2,6 @@ let autoScanTimer = null;
 let isAutoScan    = false;
 let db            = null;
 
-// Attach buttons once on page load
 document.addEventListener("DOMContentLoaded", () => {
   const btnSignal = document.getElementById("btn-get-signal");
   const btnAuto   = document.getElementById("btn-auto");
@@ -14,7 +13,7 @@ async function onGetSignal() {
   const btn = document.getElementById("btn-get-signal");
   if (!btn || btn.disabled) return;
   btn.disabled = true;
-  btn.textContent = "⏳ ANALYSING...";
+  btn.textContent = "⏳ SCANNING 11 MODULES...";
 
   try {
     const signal = await generateSignal(window.selectedPair || "EUR/USD");
@@ -38,7 +37,10 @@ function renderSignal(s) {
   const card = document.getElementById("signal-card");
   card.className = "signal-card " + (s.direction==="BUY"?"buy":s.direction==="SELL"?"sell":"idle");
   document.getElementById("signal-direction").textContent = s.direction;
-  document.getElementById("signal-pair-display").textContent = `${s.pair} · ${s.biasLabel} · ${s.confidence}%`;
+  document.getElementById("signal-pair-display").textContent =
+    s.direction === "WAIT"
+      ? `${s.pair} · ${s.biasLabel}`
+      : `${s.pair} · ${s.biasLabel} · ${s.confidence}% · ${s.strength}`;
 
   ["c1","c2","c3"].forEach((id,i) => {
     const box = document.getElementById(id);
@@ -58,22 +60,57 @@ function renderSignal(s) {
     panel.className = "sniper-panel";
     card.appendChild(panel);
   }
+
+  const checklistHtml = s.checklist.map(c => {
+    const color = c.bias === "bull" ? "bull" : c.bias === "bear" ? "bear" : "neutral";
+    const icon  = c.bias === "bull" ? "✅" : c.bias === "bear" ? "🔴" : "⚪";
+    return `<div class="sniper-row"><span class="s-label">${icon} ${c.name}</span><span class="s-val ${color}">${c.bias.toUpperCase()}</span></div>`;
+  }).join("");
+
   panel.innerHTML = `
-    <div class="sniper-row"><span class="s-label">BULL SCORE</span><span class="s-val bull">${s.bullScore}%</span></div>
-    <div class="sniper-row"><span class="s-label">BEAR SCORE</span><span class="s-val bear">${s.bearScore}%</span></div>
-    <div class="sniper-row"><span class="s-label">MARKET BIAS</span><span class="s-val ${s.direction==='BUY'?'bull':s.direction==='SELL'?'bear':'neutral'}">${s.biasLabel}</span></div>
+    <div class="confluence-badge ${s.strength==='STRONG'?'strong':s.strength==='MODERATE'?'moderate':'weak'}">
+      CONFLUENCE: ${s.confluenceScore}/${s.maxScore} · ${s.strength}
+    </div>
+
     <div class="sniper-divider"></div>
-    <div class="sniper-row"><span class="s-label">BUYERS 🟢</span><span class="s-val bull">${s.buyers}%</span></div>
-    <div class="sniper-row"><span class="s-label">SELLERS 🔴</span><span class="s-val bear">${s.sellers}%</span></div>
+    <p class="sniper-section-title">📈 TREND ENGINE</p>
+    <div class="sniper-row"><span class="s-label">EMA 20/50/200</span><span class="s-val ${s.emaTrend==='BULL'?'bull':s.emaTrend==='BEAR'?'bear':'neutral'}">${s.emaTrend}</span></div>
+    <div class="sniper-row"><span class="s-label">SUPERTREND</span><span class="s-val ${s.supertrend==='BULL'?'bull':'bear'}">${s.supertrend}</span></div>
+    <div class="sniper-row"><span class="s-label">PRICE/VWAP</span><span class="s-val ${s.priceVwap==='ABOVE'?'bull':'bear'}">${s.priceVwap}</span></div>
+
     <div class="sniper-divider"></div>
+    <p class="sniper-section-title">🧠 SMART MONEY</p>
+    <div class="sniper-row"><span class="s-label">BOS</span><span class="s-val ${s.bos==='bullish'?'bull':s.bos==='bearish'?'bear':'neutral'}">${s.bos||'none'}</span></div>
+    <div class="sniper-row"><span class="s-label">CHOCH</span><span class="s-val ${s.choch==='bullish'?'bull':s.choch==='bearish'?'bear':'neutral'}">${s.choch||'none'}</span></div>
+    <div class="sniper-row"><span class="s-label">ORDER BLOCK</span><span class="s-val ${s.orderBlock==='bullish'?'bull':s.orderBlock==='bearish'?'bear':'neutral'}">${s.orderBlock}</span></div>
+    <div class="sniper-row"><span class="s-label">FVG</span><span class="s-val ${s.fvg==='bullish'?'bull':s.fvg==='bearish'?'bear':'neutral'}">${s.fvg}</span></div>
+    <div class="sniper-row"><span class="s-label">LIQUIDITY SWEEP</span><span class="s-val gold">${s.liquiditySweep}</span></div>
+
+    <div class="sniper-divider"></div>
+    <p class="sniper-section-title">⚡ MOMENTUM & VOLUME</p>
     <div class="sniper-row"><span class="s-label">RSI (14)</span><span class="s-val">${s.rsi}</span></div>
     <div class="sniper-row"><span class="s-label">MACD</span><span class="s-val ${s.macdHist==='BULL'?'bull':'bear'}">${s.macdHist}</span></div>
-    <div class="sniper-row"><span class="s-label">EMA CROSS</span><span class="s-val ${s.emaCross==='BULL'?'bull':'bear'}">${s.emaCross}</span></div>
-    <div class="sniper-row"><span class="s-label">STOCHASTIC</span><span class="s-val">${s.stoch}</span></div>
-    <div class="sniper-row"><span class="s-label">ADX</span><span class="s-val">${s.adx}</span></div>
-    <div class="sniper-row"><span class="s-label">PRICE/VWAP</span><span class="s-val ${s.priceVwap==='ABOVE'?'bull':'bear'}">${s.priceVwap}</span></div>
+    <div class="sniper-row"><span class="s-label">VOLUME SPIKE</span><span class="s-val ${s.volumeSpike?'gold':'neutral'}">${s.volumeSpike ? 'YES x'+s.volumeRatio : 'NO'}</span></div>
+
     <div class="sniper-divider"></div>
+    <p class="sniper-section-title">🕯 CANDLE PATTERN</p>
     <div class="sniper-row"><span class="s-label">PATTERN</span><span class="s-val gold">${s.pattern}</span></div>
+
+    <div class="sniper-divider"></div>
+    <p class="sniper-section-title">📋 CONFLUENCE CHECKLIST (${s.confluenceScore}/11)</p>
+    ${checklistHtml}
+
+    <div class="sniper-divider"></div>
+    <p class="sniper-section-title">🎯 RISK MANAGEMENT</p>
+    <div class="sniper-row"><span class="s-label">ENTRY</span><span class="s-val gold">${s.entry}</span></div>
+    <div class="sniper-row"><span class="s-label">STOP LOSS</span><span class="s-val bear">${s.stopLoss}</span></div>
+    <div class="sniper-row"><span class="s-label">TP1</span><span class="s-val bull">${s.tp1}</span></div>
+    <div class="sniper-row"><span class="s-label">TP2</span><span class="s-val bull">${s.tp2}</span></div>
+    <div class="sniper-row"><span class="s-label">RISK:REWARD</span><span class="s-val gold">1 : ${s.riskReward}</span></div>
+
+    <div class="sniper-divider"></div>
+    <div class="sniper-row"><span class="s-label">BUY PROBABILITY</span><span class="s-val bull">${s.buyers}%</span></div>
+    <div class="sniper-row"><span class="s-label">SELL PROBABILITY</span><span class="s-val bear">${s.sellers}%</span></div>
   `;
 }
 
@@ -82,7 +119,7 @@ async function saveSignal(s) {
   try {
     await db.from("signals").insert([{
       pair: s.pair, direction: s.direction,
-      confidence: String(s.confidence), rsi: s.rsi, macd: s.macd,
+      confidence: String(s.confidence), rsi: s.rsi, macd: s.macdHist,
       candle1: s.predictions[0].label,
       candle2: s.predictions[1].label,
       candle3: s.predictions[2].label,

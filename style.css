@@ -397,3 +397,26 @@ section { padding: 16px 20px; }
   color: #000;
   font-weight: 700;
 }
+
+/* CONFLUENCE BADGE */
+.confluence-badge {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.confluence-badge.strong   { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+.confluence-badge.moderate { background: rgba(245,200,66,0.12); color: var(--gold); border: 1px solid rgba(245,200,66,0.3); }
+.confluence-badge.weak     { background: rgba(255,59,92,0.1); color: var(--red); border: 1px solid rgba(255,59,92,0.3); }
+
+.sniper-section-title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  margin: 10px 0 6px;
+}
