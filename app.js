@@ -160,3 +160,24 @@ function showError(msg) {
   if (dir) dir.textContent = "ERR";
   if (dis) dis.textContent = msg;
 }
+
+// Auto-run pattern scanner when pair selected or signal generated
+document.addEventListener("DOMContentLoaded", () => {
+  // Patch pair buttons to also trigger scanner
+  document.addEventListener("click", e => {
+    if (e.target.classList.contains("pair-btn")) {
+      setTimeout(() => {
+        const pair = window.selectedPair || "EUR/USD";
+        if (typeof startPatternScanner === "function") startPatternScanner(pair);
+      }, 300);
+    }
+  });
+});
+
+// Also run scanner after GET SIGNAL
+const _origOnGetSignal = onGetSignal;
+onGetSignal = async function() {
+  await _origOnGetSignal();
+  const pair = window.selectedPair || "EUR/USD";
+  if (typeof runPatternScan === "function") runPatternScan(pair);
+};

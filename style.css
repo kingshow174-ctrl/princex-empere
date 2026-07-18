@@ -424,3 +424,168 @@ section { padding: 16px 20px; }
 /* TAB SYSTEM */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
+
+/* ── PATTERN SCANNER ── */
+.scanner-section {
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+}
+.scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.scanner-title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 2px;
+}
+.scanner-time {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--muted);
+}
+.scanner-refresh {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+}
+.scanner-refresh:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Recommendation box */
+.ps-recommendation {
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.ps-rec-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.ps-rec-direction {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  margin-bottom: 12px;
+}
+.ps-rec-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ps-rec-box {
+  flex: 1;
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 8px 4px;
+  text-align: center;
+}
+.ps-rec-box span {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 8px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.ps-rec-box b {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+}
+.ps-expiry-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ps-expiry-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s;
+}
+
+/* Pattern cards */
+.ps-patterns-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.ps-pattern-card {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.ps-pat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.ps-pat-name {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+.ps-pat-signal {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.ps-pat-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.ps-pat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.ps-pat-type {
+  font-family: var(--font-display);
+  font-size: 8px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+}
+.ps-pat-expiry {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+}
+.ps-pat-conf {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ps-conf-bar {
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  overflow: hidden;
+}

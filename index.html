@@ -122,6 +122,23 @@
       <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
     </section>
 
+
+    <!-- CANDLE PATTERN SCANNER -->
+    <section class="scanner-section" id="scanner-wrap">
+      <div class="scanner-header">
+        <div>
+          <p class="scanner-title">🕯 CANDLE PATTERN SCANNER</p>
+          <span class="scanner-time" id="scanner-time">Not scanned yet</span>
+        </div>
+        <button class="scanner-refresh" onclick="runPatternScan(window.selectedPair||'EUR/USD')">🔍 SCAN</button>
+      </div>
+      <div id="pattern-scanner">
+        <div style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+          SELECT A PAIR AND SCAN TO DETECT PATTERNS
+        </div>
+      </div>
+    </section>
+
     <section class="history-section">
       <div class="history-header">
         <p class="section-label" style="margin:0">📋 SIGNAL HISTORY</p>
@@ -323,6 +340,7 @@
 
 
   <script src="deriv-pro.js"></script>
+  <script src="candle-scanner.js"></script>
   <script src="gemini-deriv.js"></script>
   <script src="deriv-chart.js"></script>
   <script src="deriv.js"></script>
