@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PRINCEX EMPERE</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#f5c842"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="PRINCEX"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="deriv.css"/>
+
+  <link rel="stylesheet" href="auth.css"/>
+</head>
+<body>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-logo">
+    <span class="auth-logo-icon">👑</span>
+    <div class="auth-logo-title">PRINCEX</div>
+    <div class="auth-logo-sub">EMPERE · TRADING SIGNALS</div>
+  </div>
+  <div class="auth-card">
+    <h2 id="auth-title">WELCOME BACK</h2>
+    <p id="auth-subtitle">Sign in to continue</p>
+    <div id="name-field" class="auth-field" style="display:none">
+      <label>FULL NAME</label>
+      <input type="text" id="auth-name" placeholder="Your name"/>
+    </div>
+    <div class="auth-field">
+      <label>EMAIL ADDRESS</label>
+      <input type="email" id="auth-email" placeholder="you@email.com" onkeydown="if(event.key==='Enter') signIn()"/>
+    </div>
+    <div class="auth-field">
+      <label>PASSWORD</label>
+      <input type="password" id="auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter') signIn()"/>
+    </div>
+    <div id="auth-error"></div>
+    <button class="btn-signin-main" id="btn-signin" onclick="signIn()">SIGN IN</button>
+    <button class="btn-signup-main" id="btn-signup" onclick="signUp()">SIGN UP</button>
+    <p class="auth-forgot" onclick="resetPassword()">Forgot password?</p>
+    <div class="auth-toggle">Don't have an account? <span onclick="toggleAuthMode()">Create one</span></div>
+  </div>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div id="main-app" style="display:none">
+
+  <!-- ── FOREX TAB ── -->
+  <div id="tab-forex" class="tab-content active">
+
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">👑</span>
+        <div><h1 class="logo-title">PRINCEX</h1><p class="logo-sub">EMPERE · TRADING SIGNALS</p></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="live-dot"></span>
+        <button id="btn-sound" style="background:transparent;border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-family:var(--font-display);font-size:9px;cursor:pointer;color:var(--green);letter-spacing:1px">🔔 SOUND ON</button>
+        <span id="status-text" style="font-family:var(--font-display);font-size:10px;color:var(--muted)">LIVE</span>
+        <div class="user-badge" onclick="toggleSignoutMenu()">
+          <div class="user-avatar">👤</div>
+          <span id="user-name">USER</span>
+        </div>
+      </div>
+      <div class="signout-menu" id="signout-menu">
+        <button onclick="signOut()">🚪 SIGN OUT</button>
+      </div>
+    </header>
+
+    <section class="stats-section">
+      <p class="section-label">📈 SIGNALS COUNT</p>
+      <div id="stats-panel">
+        <div class="stats-grid">
+          <div class="stat-box"><p class="stat-label">TODAY</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
+          <div class="stat-box"><p class="stat-label">THIS WEEK</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
+          <div class="stat-box"><p class="stat-label">ALL TIME</p><p class="stat-rate" style="color:var(--gold)">0</p><p class="stat-total">signals</p></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="countdown-bar" style="display:none">
+      <div id="countdown-fill"></div>
+      <div class="countdown-info">
+        <span id="countdown-timer">03:00</span>
+        <span id="countdown-status">SIGNAL ACTIVE</span>
+      </div>
+    </div>
+
+    <section class="expiry-section">
+      <p class="section-label">⏱ SELECT EXPIRY</p>
+      <div id="expiry-selector" class="expiry-grid"></div>
+    </section>
+
+    <section class="pair-section">
+      <p class="section-label">SELECT PAIR</p>
+      <div class="pair-grid" id="pair-grid"></div>
+    </section>
+
+    <section class="chart-section">
+      <p class="section-label">📊 LIVE CHART · 1MIN</p>
+      <div id="tradingview-widget"></div>
+    </section>
+
+    <section class="signal-section">
+      <div id="signal-card" class="signal-card idle">
+        <p class="signal-label">SIGNAL</p>
+        <h2 id="signal-direction">--</h2>
+        <p id="signal-pair-display">Select a pair & get signal</p>
+        <div class="candle-predictions">
+          <div class="candle-box" id="c1">C1: --</div>
+          <div class="candle-box" id="c2">C2: --</div>
+          <div class="candle-box" id="c3">C3: --</div>
+        </div>
+        <p class="expiry-note" id="expiry-note">1 MIN · 3 CANDLES · 3 MIN EXPIRY</p>
+      </div>
+      <button class="btn-signal" id="btn-get-signal">⚡ GET SIGNAL</button>
+      <button class="btn-auto" id="btn-auto">🔄 AUTO SCAN</button>
+    </section>
+
+    <section class="history-section">
+      <div class="history-header">
+        <p class="section-label" style="margin:0">📋 SIGNAL HISTORY</p>
+        <button class="btn-clear" onclick="clearHistory()">🗑 CLEAR</button>
+      </div>
+      <div id="history-list"><p class="empty-msg">No signals yet.</p></div>
+    </section>
+
+    <footer class="footer">PRINCEX EMPERE · TRADING INVOLVES RISK</footer>
+  </div>
+
+
+  <!-- ── DERIV PRO TAB ── -->
+  <div id="tab-deriv-pro" class="tab-content">
+
+    <div class="dp-header">
+      <div class="dp-logo">
+        <span style="font-size:22px">👑</span>
+        <div>
+          <div class="dp-logo-title">DERIV PRO</div>
+          <div class="dp-logo-sub">63-POINT CONFLUENCE ENGINE</div>
+        </div>
+      </div>
+      <div class="dp-status">
+        <div class="dp-dot" id="dp-status-dot"></div>
+        <span id="dp-status-txt">OFFLINE</span>
+      </div>
+    </div>
+
+    <!-- LIVE DASHBOARD STRIP -->
+    <div class="dp-dash">
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">PAIR · TF</span>
+        <span class="dp-dash-val gold" id="dp-dash-pair">V50 · 1m</span>
+      </div>
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">LIVE PRICE</span>
+        <span class="dp-dash-val" id="dp-dash-price">--</span>
+      </div>
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">CHANGE</span>
+        <span class="dp-dash-val" id="dp-dash-change">--</span>
+      </div>
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">SESSION</span>
+        <span class="dp-dash-val gold" id="dp-dash-session">--</span>
+      </div>
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">SCORE</span>
+        <span class="dp-dash-val" id="dp-dash-score">--</span>
+      </div>
+      <div class="dp-dash-box">
+        <span class="dp-dash-label">SIGNAL</span>
+        <span class="dp-dash-val" id="dp-dash-dir">--</span>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="dp-stats">
+      <div class="dp-stat-box">
+        <div class="dp-stat-lbl">TODAY</div>
+        <div class="dp-stat-val" id="dp-stat-today">0</div>
+        <div class="dp-stat-sub">signals</div>
+      </div>
+      <div class="dp-stat-box">
+        <div class="dp-stat-lbl">THIS WEEK</div>
+        <div class="dp-stat-val" id="dp-stat-week">0</div>
+        <div class="dp-stat-sub">signals</div>
+      </div>
+      <div class="dp-stat-box">
+        <div class="dp-stat-lbl">ALL TIME</div>
+        <div class="dp-stat-val" id="dp-stat-all">0</div>
+        <div class="dp-stat-sub">signals</div>
+      </div>
+    </div>
+
+    <!-- PAIR SELECTOR -->
+    <div class="dp-section">
+      <span class="dp-section-label">SELECT VOLATILITY INDEX</span>
+      <div class="dp-pair-grid" id="dp-pair-grid"></div>
+    </div>
+
+    <!-- EXPIRY -->
+    <div class="dp-section">
+      <span class="dp-section-label">SELECT EXPIRY</span>
+      <div class="dp-row-grid" id="dp-expiry-grid"></div>
+    </div>
+
+    <!-- TIMEFRAME -->
+    <div class="dp-section">
+      <span class="dp-section-label">SELECT TIMEFRAME</span>
+      <div class="dp-row-grid" id="dp-tf-grid"></div>
+    </div>
+
+    <!-- CHART -->
+    <div class="dp-chart-wrap">
+      <button class="dp-fullscreen-btn" id="dp-fullscreen-btn">⛶</button>
+      <canvas id="dp-canvas-main" style="width:100%;height:280px;display:block;touch-action:none;cursor:grab"></canvas>
+      <div style="position:relative">
+        <span class="dp-panel-label" style="top:4px">RSI 14</span>
+        <canvas id="dp-canvas-rsi" style="width:100%;height:70px;display:block;background:#0b0f1a"></canvas>
+      </div>
+      <div style="position:relative">
+        <span class="dp-panel-label" style="top:4px">MACD</span>
+        <canvas id="dp-canvas-macd" style="width:100%;height:70px;display:block;background:#0b0f1a"></canvas>
+      </div>
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="dp-btn-row">
+      <button class="dp-btn-signal" id="dp-btn-signal">⚡ GET SIGNAL</button>
+      <button class="dp-btn-auto" id="dp-btn-auto">🔄 AUTO SCAN</button>
+    </div>
+
+    <!-- SIGNAL CARD -->
+    <div id="dp-signal-card" style="margin:0 16px 80px;background:#111827;border:1px solid #1e2d45;border-radius:14px;padding:18px">
+      <div style="text-align:center;padding:20px;color:#64748b;font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+        SELECT A PAIR AND PRESS GET SIGNAL<br>
+        <small style="font-size:9px">63-POINT MEGA CONFLUENCE ENGINE</small>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── DERIV TAB ── -->
+  <div id="tab-deriv" class="tab-content">
+
+    <div class="deriv-header">
+      <div class="deriv-title">
+        DERIV
+        <span>RISE / FALL · VOLATILITY INDICES</span>
+      </div>
+      <span id="deriv-status">OFFLINE</span>
+    </div>
+
+    <div class="deriv-section">
+      <p class="deriv-section-label">SELECT VOLATILITY INDEX</p>
+      <div class="deriv-pair-grid" id="deriv-pair-grid"></div>
+    </div>
+
+    <div class="deriv-section">
+      <p class="deriv-section-label">TIMEFRAME</p>
+      <div class="deriv-tf-grid" id="deriv-tf-grid"></div>
+    </div>
+
+    <div class="deriv-chart-outer">
+      <div class="deriv-chart-toolbar">
+        <span id="deriv-chart-pair" class="dchart-pair">V50</span>
+        <span id="deriv-live-price-header" class="dchart-price">--</span>
+        <span id="deriv-price-change" class="dchart-change"></span>
+        <span style="flex:1"></span>
+        <span class="live-dot" id="deriv-dot"></span>
+        <span id="deriv-status" class="dchart-status">OFFLINE</span>
+      </div>
+      <div id="deriv-chart-container" class="deriv-chart-container">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+          SELECT A PAIR TO LOAD CHART
+        </div>
+      </div>
+    </div>
+
+    <div class="deriv-btn-row">
+      <button class="deriv-btn-signal" id="deriv-btn-signal">⚡ GET SIGNAL</button>
+      <button class="deriv-btn-auto btn-auto" id="deriv-btn-auto">🔄 AUTO SCAN</button>
+    </div>
+
+    <div id="deriv-signal-card">
+      <div style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+        SELECT A PAIR AND PRESS GET SIGNAL
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" id="nav-forex" onclick="switchTab('forex')">
+      <span class="nav-icon">📊</span>FOREX
+    </button>
+    <button class="nav-tab" id="nav-deriv-pro" onclick="switchTab('deriv-pro')">
+      <span class="nav-icon">⚡</span>PRO
+    </button>
+    <button class="nav-tab" id="nav-deriv" onclick="switchTab('deriv')">
+      <span class="nav-icon">⚡</span>DERIV
+    </button>
+  </nav>
+
+</div><!-- end main-app -->
+
+<script src="/gemini-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="ringtone.js"></script>
+  <script src="config.js"></script>
+<script src="auth.js"></script>
+<script src="expiry.js"></script>
+<script src="tracker.js"></script>
+<script src="signal.js"></script>
+<script src="chart.js"></script>
+
+
+  <script src="deriv-pro.js"></script>
+  <script src="gemini-deriv.js"></script>
+  <script src="deriv-chart.js"></script>
+  <script src="deriv.js"></script>
+<script src="app.js"></script>
+
+<script>
+  try {
+    db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    initAuth();
+  } catch(e) {
+    console.error(e);
+    document.getElementById("main-app").style.display = "block";
+    document.getElementById("auth-screen").style.display = "none";
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".nav-tab").forEach(b => b.classList.remove("active"));
+    document.getElementById("tab-"+tab).classList.add("active");
+    document.getElementById("nav-"+tab).classList.add("active");
+    if (tab === "deriv") derivInitUI();
+    if (tab === "deriv-pro") dpInitUI();
+  }
+
+  function toggleSignoutMenu() {
+    const m = document.getElementById("signout-menu");
+    m.style.display = m.style.display==="block"?"none":"block";
+  }
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".user-badge")&&!e.target.closest(".signout-menu")) {
+      const m=document.getElementById("signout-menu");
+      if (m) m.style.display="none";
+    }
+  });
+
+  if ("serviceWorker" in navigator)
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+</script>
+</body>
+</html>

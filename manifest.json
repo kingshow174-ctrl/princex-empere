@@ -1,0 +1,19 @@
+{
+  "name": "Princex Empere",
+  "short_name": "PRINCEX",
+  "description": "Professional Forex Trading Signals",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#f5c842",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
