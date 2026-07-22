@@ -1,15 +1,11 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    }
-  ],
+  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "server.js"
-    }
+    { "src": "/health", "dest": "server.js" },
+    { "src": "/config.js", "dest": "server.js" },
+    { "src": "/gemini-config.js", "dest": "server.js" },
+    { "src": "/(.+\\.(css|js|png|jpg|svg|ico|json|webmanifest))", "dest": "/$1" },
+    { "src": "/(.*)", "dest": "server.js" }
   ]
 }
