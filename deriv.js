@@ -611,3 +611,10 @@ function derivInitUI() {
     }
   }, 30000);
 }
+
+// Init overlay panel on tab open
+const _origDerivInitUI2 = derivInitUI;
+derivInitUI = function() {
+  _origDerivInitUI2();
+  if (typeof dcRenderOverlayPanel === "function") dcRenderOverlayPanel();
+};

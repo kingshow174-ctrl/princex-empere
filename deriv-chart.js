@@ -345,3 +345,401 @@ function derivAddFullscreenBtn() {
 function derivToggleFullscreen() {
   document.querySelector(".deriv-chart-fullscreen")?.click();
 }
+
+// ============================================
+// CHART OVERLAYS — Show/Hide Toggle System
+// TP/SL/Entry improved lines + Entry marker
+// ============================================
+
+const DC_OVERLAYS = {
+  ema:        true,
+  vwap:       true,
+  bb:         false,
+  supertrend: true,
+  levels:     true,   // SL/TP/Entry
+  patterns:   true,
+  fibonacci:  false,
+  volume:     false,
+};
+
+// ── OVERLAY TOGGLE UI ─────────────────────────
+
+function dcRenderOverlayPanel() {
+  const el = document.getElementById("dc-overlay-panel");
+  if (!el) return;
+
+  const items = [
+    { key:"ema",        icon:"📈", label:"EMA 20/50/200" },
+    { key:"vwap",       icon:"🟡", label:"VWAP" },
+    { key:"bb",         icon:"🔵", label:"Bollinger Bands" },
+    { key:"supertrend", icon:"🔺", label:"Supertrend" },
+    { key:"levels",     icon:"🎯", label:"SL / TP / Entry" },
+    { key:"patterns",   icon:"🕯", label:"Ghost Candles" },
+    { key:"fibonacci",  icon:"🌀", label:"Fibonacci" },
+    { key:"volume",     icon:"📊", label:"Volume Bars" },
+  ];
+
+  el.innerHTML = items.map(item => `
+    <button class="dc-overlay-btn ${DC_OVERLAYS[item.key]?"active":""}"
+      onclick="dcToggleOverlay('${item.key}',this)">
+      ${item.icon} ${item.label}
+    </button>
+  `).join("");
+}
+
+function dcToggleOverlay(key, btn) {
+  DC_OVERLAYS[key] = !DC_OVERLAYS[key];
+  btn.classList.toggle("active", DC_OVERLAYS[key]);
+}
+
+// ── OVERRIDE dcDraw to use DC_OVERLAYS ────────
+
+const _origDcDraw = dcDraw;
+dcDraw = function() {
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!ctx || !canvas) return;
+
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  if (!W || !H) return;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0a0e1a";
+  ctx.fillRect(0, 0, W, H);
+
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const cW   = Math.max(1.5, CW * 0.65);
+  const all  = DC.liveCandle
+    ? [...DC.candles, { ...DC.liveCandle, _live: true }]
+    : [...DC.candles];
+
+  if (all.length === 0) {
+    ctx.fillStyle = "#475569";
+    ctx.font      = "12px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("Waiting for data...", (W-RPAD)/2, H/2);
+    ctx.textAlign = "left";
+    return;
+  }
+
+  const vis    = Math.max(5, Math.round(40 / DC.zoom));
+  const total  = all.length;
+  const endI   = Math.min(total, Math.max(vis, total - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl     = all.slice(startI, endI);
+  if (!sl.length) return;
+
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng   = hi - lo || hi * 0.01 || 1;
+  const pad   = rng * 0.15;
+  hi += pad; lo -= pad;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+  const dec   = hi < 10 ? 5 : hi < 100 ? 3 : hi < 10000 ? 2 : 0;
+
+  // ── GRID ──
+  for (let i = 0; i <= 5; i++) {
+    const v = lo + (hi - lo) * i / 5;
+    const y = scY(v);
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD, y); ctx.stroke();
+    ctx.fillStyle = "#475569";
+    ctx.font      = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(v.toFixed(dec), W - RPAD + 3, y + 3);
+  }
+  ctx.strokeStyle = "#1e2d45";
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(W-RPAD, TPAD); ctx.lineTo(W-RPAD, H-BPAD); ctx.stroke();
+
+  // ── VOLUME BARS (optional) ──
+  if (DC_OVERLAYS.volume) {
+    const maxVol = Math.max(...sl.map(c => c.volume || 1));
+    sl.forEach((c, i) => {
+      const x    = i * CW + CW / 2;
+      const bull = c.close >= c.open;
+      const vh   = ((c.volume || 1) / maxVol) * (drawH * 0.15);
+      ctx.fillStyle = bull ? "rgba(0,230,118,0.15)" : "rgba(255,59,92,0.15)";
+      ctx.fillRect(x - cW/2, H - BPAD - vh, cW, vh);
+    });
+  }
+
+  // ── EMA LINES (optional) ──
+  const allCloses = all.map(c => c.close);
+  if (DC_OVERLAYS.ema) {
+    const buildEMA = (period) => {
+      if (allCloses.length < period) return [];
+      const k = 2/(period+1), out = new Array(allCloses.length).fill(null);
+      let e = allCloses.slice(0,period).reduce((a,b)=>a+b,0)/period;
+      out[period-1] = e;
+      for (let i=period; i<allCloses.length; i++) { e=allCloses[i]*k+e*(1-k); out[i]=e; }
+      return out;
+    };
+    const drawEMA = (period, color, label) => {
+      const s = buildEMA(period);
+      if (!s.length) return;
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+      let mv = true, lastVal = null;
+      sl.forEach((_, vi) => {
+        const v = s[startI + vi];
+        if (!v || v < lo || v > hi) { mv = true; return; }
+        const x = vi * CW + CW/2, y = scY(v);
+        mv ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        mv = false; lastVal = { x, y, v };
+      });
+      ctx.stroke();
+      if (lastVal) {
+        ctx.fillStyle = color; ctx.font = "8px monospace";
+        ctx.fillText(label + " " + lastVal.v.toFixed(dec), W-RPAD+3, lastVal.y-4);
+      }
+    };
+    drawEMA(20, "#3b82f6", "E20");
+    drawEMA(50, "#f59e0b", "E50");
+    drawEMA(200,"#00e676", "E200");
+  }
+
+  // ── BOLLINGER BANDS (optional) ──
+  if (DC_OVERLAYS.bb) {
+    const period = 20;
+    if (allCloses.length >= period) {
+      const drawBBLine = (getVal, color) => {
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+        let mv = true;
+        sl.forEach((_, vi) => {
+          const ai = startI + vi;
+          const sl2 = allCloses.slice(Math.max(0,ai-period+1), ai+1);
+          if (sl2.length < period) return;
+          const avg = sl2.reduce((a,b)=>a+b,0)/sl2.length;
+          const std = Math.sqrt(sl2.reduce((s,v)=>s+Math.pow(v-avg,2),0)/sl2.length);
+          const v   = getVal(avg, std);
+          if (v < lo || v > hi) { mv = true; return; }
+          const x = vi * CW + CW/2, y = scY(v);
+          mv ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          mv = false;
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+      };
+      drawBBLine((avg,std) => avg+2*std, "rgba(99,102,241,0.6)");
+      drawBBLine((avg)     => avg,       "rgba(99,102,241,0.3)");
+      drawBBLine((avg,std) => avg-2*std, "rgba(99,102,241,0.6)");
+    }
+  }
+
+  // ── VWAP (optional) ──
+  if (DC_OVERLAYS.vwap) {
+    let cumPV = 0, cumV = 0;
+    all.slice(0, endI).forEach(c => { cumPV += (c.high+c.low+c.close)/3; cumV++; });
+    const vwap = cumV ? cumPV/cumV : 0;
+    if (vwap >= lo && vwap <= hi) {
+      const vy = scY(vwap);
+      ctx.strokeStyle = "rgba(245,200,66,0.5)";
+      ctx.lineWidth   = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(0,vy); ctx.lineTo(W-RPAD,vy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f5c842"; ctx.font = "8px monospace";
+      ctx.fillText("VWAP " + vwap.toFixed(dec), W-RPAD+3, vy-2);
+    }
+  }
+
+  // ── SUPERTREND (optional) ──
+  if (DC_OVERLAYS.supertrend && DC.signal?.details) {
+    const stVal = parseFloat(DC.signal.details.vwap) || 0;
+    if (stVal >= lo && stVal <= hi) {
+      const sty = scY(stVal);
+      ctx.strokeStyle = DC.signal.rise ? "#00e676" : "#ff3b5c";
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.moveTo(0,sty); ctx.lineTo(W-RPAD,sty); ctx.stroke();
+    }
+  }
+
+  // ── FIBONACCI (optional) ──
+  if (DC_OVERLAYS.fibonacci && all.length > 20) {
+    const fHi = Math.max(...all.slice(-20).map(c=>c.high));
+    const fLo = Math.min(...all.slice(-20).map(c=>c.low));
+    const fibLevels = [
+      { r:0,    col:"rgba(255,255,255,0.3)",  lbl:"100%" },
+      { r:0.236,col:"rgba(251,191,36,0.5)",   lbl:"76.4%" },
+      { r:0.382,col:"rgba(139,92,246,0.5)",   lbl:"61.8%" },
+      { r:0.5,  col:"rgba(255,255,255,0.4)",  lbl:"50.0%" },
+      { r:0.618,col:"rgba(139,92,246,0.5)",   lbl:"38.2%" },
+      { r:0.786,col:"rgba(251,191,36,0.5)",   lbl:"21.4%" },
+      { r:1,    col:"rgba(255,255,255,0.3)",  lbl:"0%" },
+    ];
+    fibLevels.forEach(f => {
+      const v = fHi - (fHi-fLo) * f.r;
+      if (v < lo || v > hi) return;
+      const y = scY(v);
+      ctx.strokeStyle = f.col; ctx.lineWidth = 1; ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = f.col.replace("0.5","0.8").replace("0.3","0.6");
+      ctx.font = "8px monospace";
+      ctx.fillText("Fib " + f.lbl, 4, y - 2);
+    });
+  }
+
+  // ── SL / TP / ENTRY LINES (optional, IMPROVED) ──
+  if (DC_OVERLAYS.levels && DC.signal?.fired) {
+    const drawLevel = (price, color, label, isEntry) => {
+      const pf = parseFloat(price);
+      if (!pf || pf < lo || pf > hi) return;
+      const y  = scY(pf);
+      const lw = isEntry ? 2.5 : 1.5;
+
+      // Line
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.setLineDash(isEntry ? [] : [6, 3]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD - 2, y); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label box — BIGGER
+      const boxW = 58, boxH = 20;
+      const boxX = W - RPAD - boxW - 4;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(boxX, y - boxH/2, boxW, boxH, 4)
+                    : ctx.rect(boxX, y - boxH/2, boxW, boxH);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.font      = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(label, boxX + boxW/2, y + 4);
+      ctx.textAlign = "left";
+
+      // Price tag on right axis
+      ctx.fillStyle = color;
+      ctx.fillRect(W - RPAD, y - 10, RPAD - 1, 20);
+      ctx.fillStyle = "#000";
+      ctx.font      = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(pf.toFixed(dec), W - RPAD + (RPAD-1)/2, y + 4);
+      ctx.textAlign = "left";
+
+      // Entry arrow marker
+      if (isEntry) {
+        const arrowX = 10;
+        const arrowDir = DC.signal.rise;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        if (arrowDir) {
+          ctx.moveTo(arrowX,     y + 8);
+          ctx.lineTo(arrowX + 8, y + 8);
+          ctx.lineTo(arrowX + 4, y);
+        } else {
+          ctx.moveTo(arrowX,     y - 8);
+          ctx.lineTo(arrowX + 8, y - 8);
+          ctx.lineTo(arrowX + 4, y);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+    };
+
+    const s = DC.signal;
+    drawLevel(s.sl,    "#ff3b5c", "🛡 SL",     false);
+    drawLevel(s.tp2,   "#00ff88", "🎯 TP2",    false);
+    drawLevel(s.tp1,   "#00e676", "✅ TP1",    false);
+    drawLevel(s.entry, "#ffffff", "📍 ENTRY",  true);  // Entry drawn last (on top)
+  }
+
+  // ── CANDLES ──
+  sl.forEach((c, i) => {
+    const live  = c._live === true;
+    const bull  = c.close >= c.open;
+    const color = live ? "#a78bfa" : (bull ? "#00e676" : "#ff3b5c");
+    const x     = i * CW + CW/2;
+    const hY    = scY(c.high), lY = scY(c.low);
+    const oY    = scY(c.open), clY = scY(c.close);
+    const bTop  = Math.min(oY, clY);
+    const bH    = Math.max(1.5, Math.abs(oY - clY));
+
+    ctx.strokeStyle = live ? "#c4b5fd" : color;
+    ctx.lineWidth   = Math.max(1, cW * 0.1);
+    ctx.beginPath(); ctx.moveTo(x, hY); ctx.lineTo(x, lY); ctx.stroke();
+
+    if (live) {
+      ctx.fillStyle = "rgba(167,139,250,0.4)";
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
+      ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1;
+      ctx.strokeRect(x - cW/2, bTop, cW, bH);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
+    }
+  });
+
+  // ── GHOST CANDLES (optional) ──
+  if (DC_OVERLAYS.patterns && DC.signal?.fired && DC.signal.predictions && DC.offset === 0) {
+    const atr  = parseFloat(DC.signal.details?.atr) || rng * 0.3;
+    const base = sl[sl.length-1]?.close || (hi+lo)/2;
+    DC.signal.predictions.forEach((p, i) => {
+      const x = (sl.length + i) * CW + CW/2;
+      if (x > W - RPAD - 5) return;
+      const rise2  = p.dir === "RISE";
+      const gc     = rise2 ? base + atr*0.5 : base - atr*0.5;
+      const go     = base;
+      const gh     = rise2 ? gc + atr*0.3 : go + atr*0.15;
+      const gl     = rise2 ? go - atr*0.15 : gc - atr*0.3;
+      if (gh > hi || gl < lo) return;
+
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, scY(gh)); ctx.lineTo(x, scY(gl)); ctx.stroke();
+      const bt  = Math.min(scY(go), scY(gc));
+      const bh2 = Math.max(2, Math.abs(scY(go) - scY(gc)));
+      ctx.fillStyle = rise2 ? "rgba(124,58,237,0.5)" : "rgba(147,51,234,0.5)";
+      ctx.fillRect(x - cW/2, bt, cW, bh2);
+      ctx.strokeRect(x - cW/2, bt, cW, bh2);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#a855f7"; ctx.font = "8px monospace"; ctx.textAlign = "center";
+      ctx.fillText("C" + p.index, x, H - BPAD + 12);
+      ctx.fillText(p.riseP + "%", x, H - BPAD + 22);
+      ctx.textAlign = "left";
+    });
+  }
+
+  // ── LIVE PRICE BOX ──
+  const lp = DC.liveCandle?.close || DC.price || all[all.length-1]?.close;
+  if (lp && lp >= lo && lp <= hi) {
+    const py = scY(lp);
+    ctx.strokeStyle = "rgba(245,200,66,0.4)"; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W-RPAD,py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#f5c842";
+    ctx.fillRect(W-RPAD, py-10, RPAD-1, 20);
+    ctx.fillStyle = "#000"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
+    ctx.fillText(lp.toFixed(dec), W-RPAD+(RPAD-1)/2, py+4);
+    ctx.textAlign = "left";
+  }
+
+  // ── TIME AXIS ──
+  const ts = Math.max(1, Math.floor(sl.length/5));
+  ctx.fillStyle = "#334155"; ctx.font = "8px monospace";
+  sl.forEach((c, i) => {
+    if (i % ts !== 0) return;
+    const dt = new Date((c.epoch||0)*1000);
+    const t  = dt.getUTCHours().toString().padStart(2,"0")+":"+dt.getUTCMinutes().toString().padStart(2,"0");
+    ctx.fillText(t, i*CW+2, H-6);
+  });
+
+  // ── LIVE badge ──
+  if (DC.liveCandle) {
+    ctx.fillStyle = "rgba(0,230,118,0.12)"; ctx.fillRect(4,4,44,16);
+    ctx.fillStyle = "#00e676"; ctx.font = "bold 9px monospace";
+    ctx.fillText("● LIVE", 7, 15);
+  }
+
+  // Scroll hint
+  if (DC.offset > 0) {
+    ctx.fillStyle = "rgba(10,14,26,0.8)"; ctx.fillRect(0,TPAD,W-RPAD,18);
+    ctx.fillStyle = "#f5c842"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+    ctx.fillText("◀ " + DC.offset + " back — swipe right for latest", (W-RPAD)/2, TPAD+13);
+    ctx.textAlign = "left";
+  }
+  ctx.fillStyle = "#1e293b"; ctx.font = "8px monospace";
+  ctx.fillText(DC.sym + " x"+DC.zoom.toFixed(1)+" "+all.length+"c", 4, H-6);
+};
