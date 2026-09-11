@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
   <link rel="stylesheet" href="deriv.css"/>
+  <link rel="stylesheet" href="notifications.css"/>
 
   <link rel="stylesheet" href="auth.css"/>
 </head>
@@ -150,6 +151,84 @@
     <footer class="footer">PRINCEX EMPERE · TRADING INVOLVES RISK</footer>
   </div>
 
+
+  <!-- ── SIGNALS TAB ── -->
+  <div id="tab-signals" class="tab-content">
+
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🔔</span>
+        <div>
+          <h1 class="logo-title">SIGNALS</h1>
+          <p class="logo-sub">EMA CROSS MONITOR · ALL MARKETS</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="notif-dot" id="notif-status-dot"></div>
+        <span style="font-family:var(--font-display);font-size:9px;color:var(--muted);letter-spacing:1px" id="notif-monitor-status">IDLE</span>
+      </div>
+    </header>
+
+    <!-- MONITOR CONTROL -->
+    <div class="notif-section">
+      <div class="notif-section-title">
+        <span>📡 MARKET MONITOR</span>
+        <span id="notif-status-dot2" class="notif-dot"></span>
+      </div>
+      <button id="notif-monitor-btn" class="notif-btn-start" onclick="NOTIF.monitoring?notifStopMonitoring():notifStartMonitoring()">
+        🔍 START MONITORING ALL MARKETS
+      </button>
+      <div id="notif-status-msg" class="notif-status"></div>
+      <div class="notif-scan-info">
+        <span>Scans EMA20 × EMA50 cross on all pairs</span>
+        <span>Every 60 seconds</span>
+      </div>
+    </div>
+
+    <!-- CUSTOM RINGTONE -->
+    <div class="notif-section">
+      <div class="notif-section-title">🎵 CUSTOM RINGTONE</div>
+      <div class="notif-upload-wrap">
+        <span class="notif-upload-icon">🎵</span>
+        <span class="notif-upload-label">TAP TO UPLOAD YOUR RINGTONE</span>
+        <span style="font-family:var(--font-display);font-size:8px;color:var(--muted)">MP3 · WAV · OGG · M4A (max 5MB)</span>
+        <input type="file" class="notif-upload-input" accept="audio/*"
+          onchange="notifHandleFileUpload(this)">
+      </div>
+      <div class="notif-sound-info">
+        <div class="notif-sound-name-wrap">
+          <span>🔔</span>
+          <span id="notif-sound-name">Default tones</span>
+        </div>
+        <div class="notif-sound-actions">
+          <button class="notif-preview-btn" onclick="notifPlayCustomSound()">▶ PREVIEW</button>
+          <button class="notif-clear-btn" onclick="notifClearSound()">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WHAT WE MONITOR -->
+    <div class="notif-section">
+      <div class="notif-section-title">📋 MONITORING PAIRS</div>
+      <div class="notif-scan-pairs" id="notif-scan-pairs">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- SIGNAL LIST -->
+    <div class="signal-list-header">
+      <span class="signal-list-title">⚡ EMA CROSS SIGNALS</span>
+      <button class="notif-clear-all-btn" onclick="notifClearAlerts()">🗑 CLEAR ALL</button>
+    </div>
+    <div id="cross-signal-list">
+      <div class="notif-empty">
+        No EMA cross signals yet.<br>
+        Tap START MONITORING to watch all markets.<br>
+        <small style="font-size:9px;color:#334155">Alerts fire when EMA20 crosses EMA50</small>
+      </div>
+    </div>
+
+  </div>
 
   <!-- ── DERIV PRO TAB ── -->
   <div id="tab-deriv-pro" class="tab-content">
@@ -330,7 +409,8 @@
 
 <script src="/gemini-config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="ringtone.js"></script>
+<script src="notifications.js"></script>
+  <script src="ringtone.js"></script>
   <script src="config.js"></script>
 <script src="auth.js"></script>
 <script src="expiry.js"></script>
@@ -363,6 +443,7 @@
     document.getElementById("nav-"+tab).classList.add("active");
     if (tab === "deriv") derivInitUI();
     if (tab === "deriv-pro") dpInitUI();
+    if (tab === "signals") notifInitSignalsTab();
   }
 
   function toggleSignoutMenu() {

@@ -63,3 +63,37 @@ app.get("*", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("PRINCEX EMPERE on port " + PORT));
+
+// Deriv OAuth token exchange (server-side only — never expose in browser)
+app.post("/api/deriv-token", async (req, res) => {
+  try {
+    const { code, codeVerifier, redirectUri } = req.body;
+    const clientId = process.env.DERIV_CLIENT_ID;
+
+    if (!clientId) {
+      return res.status(500).json({ error: "DERIV_CLIENT_ID not configured" });
+    }
+
+    const body = new URLSearchParams({
+      grant_type:    "authorization_code",
+      client_id:     clientId,
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri:  redirectUri,
+    });
+
+    const response = await fetch("https://auth.deriv.com/oauth2/token", {
+      method:  "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:    body.toString(),
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Parse JSON bodies
+app.use(express.json());

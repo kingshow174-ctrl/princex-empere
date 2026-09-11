@@ -431,3 +431,58 @@ body { padding-bottom: 60px; }
 /* Taller chart for better view */
 .deriv-chart-container { height: 380px; }
 .deriv-chart-outer.fullscreen .deriv-chart-container { height: calc(100vh - 100px); }
+
+/* DERIV USER PANEL */
+.du-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.du-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.du-avatar {
+  font-size: 24px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+}
+.du-name {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+.du-balance {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 2px;
+}
+.du-trade-btn {
+  padding: 8px 14px;
+  background: var(--green);
+  color: #000;
+  border-radius: 8px;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.du-logout-btn {
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.du-logout-btn:hover { border-color: var(--red); color: var(--red); }
