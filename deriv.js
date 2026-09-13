@@ -23,6 +23,7 @@ const DERIV_PAIRS = [
   // ── CRASH INDICES ──
   { symbol:"CRASH300N",  label:"CRASH 300",   name:"Crash 300 Index",       group:"CRASH" },
   { symbol:"CRASH500",   label:"CRASH 500",   name:"Crash 500 Index",       group:"CRASH" },
+  { symbol:"CRASH900",   label:"CRASH 900",   name:"Crash 900 Index",       group:"CRASH" },
   { symbol:"CRASH1000",  label:"CRASH 1000",  name:"Crash 1000 Index",      group:"CRASH" },
   { symbol:"CRASH2000",  label:"CRASH 2000",  name:"Crash 2000 Index",      group:"CRASH" },
   // ── BOOM INDICES ──
