@@ -9,16 +9,42 @@ const DERIV_ACCOUNT  = "DOT90004580";
 const DERIV_PUBLIC_WS = "wss://api.derivws.com/trading/v1/options/ws/public";
 
 const DERIV_PAIRS = [
-  { symbol:"R_10",    label:"V10",   name:"Volatility 10 Index" },
-  { symbol:"R_25",    label:"V25",   name:"Volatility 25 Index" },
-  { symbol:"R_50",    label:"V50",   name:"Volatility 50 Index" },
-  { symbol:"R_75",    label:"V75",   name:"Volatility 75 Index" },
-  { symbol:"R_100",   label:"V100",  name:"Volatility 100 Index" },
-  { symbol:"1HZ10V",  label:"V10s",  name:"Volatility 10 (1s) Index" },
-  { symbol:"1HZ25V",  label:"V25s",  name:"Volatility 25 (1s) Index" },
-  { symbol:"1HZ50V",  label:"V50s",  name:"Volatility 50 (1s) Index" },
-  { symbol:"1HZ75V",  label:"V75s",  name:"Volatility 75 (1s) Index" },
-  { symbol:"1HZ100V", label:"V100s", name:"Volatility 100 (1s) Index" },
+  // ── VOLATILITY INDICES ──
+  { symbol:"1HZ10V",   label:"V10",    name:"Volatility 10 Index",          group:"VOLATILITY" },
+  { symbol:"1HZ25V",   label:"V25",    name:"Volatility 25 Index",          group:"VOLATILITY" },
+  { symbol:"1HZ50V",   label:"V50",    name:"Volatility 50 Index",          group:"VOLATILITY" },
+  { symbol:"1HZ75V",   label:"V75",    name:"Volatility 75 Index",          group:"VOLATILITY" },
+  { symbol:"1HZ100V",  label:"V100",   name:"Volatility 100 Index",         group:"VOLATILITY" },
+  { symbol:"R_10",     label:"V10(1s)",name:"Volatility 10 (1s) Index",     group:"VOLATILITY" },
+  { symbol:"R_25",     label:"V25(1s)",name:"Volatility 25 (1s) Index",     group:"VOLATILITY" },
+  { symbol:"R_50",     label:"V50(1s)",name:"Volatility 50 (1s) Index",     group:"VOLATILITY" },
+  { symbol:"R_75",     label:"V75(1s)",name:"Volatility 75 (1s) Index",     group:"VOLATILITY" },
+  { symbol:"R_100",    label:"V100(1s)",name:"Volatility 100 (1s) Index",   group:"VOLATILITY" },
+  // ── CRASH INDICES ──
+  { symbol:"CRASH300N",  label:"CRASH 300",   name:"Crash 300 Index",       group:"CRASH" },
+  { symbol:"CRASH500",   label:"CRASH 500",   name:"Crash 500 Index",       group:"CRASH" },
+  { symbol:"CRASH1000",  label:"CRASH 1000",  name:"Crash 1000 Index",      group:"CRASH" },
+  { symbol:"CRASH2000",  label:"CRASH 2000",  name:"Crash 2000 Index",      group:"CRASH" },
+  // ── BOOM INDICES ──
+  { symbol:"BOOM300N",   label:"BOOM 300",    name:"Boom 300 Index",        group:"BOOM" },
+  { symbol:"BOOM500",    label:"BOOM 500",    name:"Boom 500 Index",        group:"BOOM" },
+  { symbol:"BOOM1000",   label:"BOOM 1000",   name:"Boom 1000 Index",       group:"BOOM" },
+  { symbol:"BOOM2000",   label:"BOOM 2000",   name:"Boom 2000 Index",       group:"BOOM" },
+  // ── STEP INDICES ──
+  { symbol:"stpRNG1",    label:"STEP 100",    name:"Step Index 100",        group:"STEP" },
+  { symbol:"stpRNG2",    label:"STEP 200",    name:"Step Index 200",        group:"STEP" },
+  // ── DRIFT SWITCH ──
+  { symbol:"RDSEC",      label:"DS 10",       name:"Drift Switch Index 10", group:"DRIFT" },
+  { symbol:"RDSEC2",     label:"DS 20",       name:"Drift Switch Index 20", group:"DRIFT" },
+  // ── RANGE BREAK ──
+  { symbol:"RNGBR1",     label:"RB 100",      name:"Range Break 100 Index", group:"RANGE" },
+  { symbol:"RNGBR2",     label:"RB 200",      name:"Range Break 200 Index", group:"RANGE" },
+  // ── JUMP INDICES ──
+  { symbol:"JD10",       label:"JUMP 10",     name:"Jump 10 Index",         group:"JUMP" },
+  { symbol:"JD25",       label:"JUMP 25",     name:"Jump 25 Index",         group:"JUMP" },
+  { symbol:"JD50",       label:"JUMP 50",     name:"Jump 50 Index",         group:"JUMP" },
+  { symbol:"JD75",       label:"JUMP 75",     name:"Jump 75 Index",         group:"JUMP" },
+  { symbol:"JD100",      label:"JUMP 100",    name:"Jump 100 Index",        group:"JUMP" },
 ];
 
 const DERIV_TIMEFRAMES = [
@@ -552,26 +578,67 @@ function derivToggleAuto() {
 // ── INIT UI ───────────────────────────────────
 
 function derivInitUI() {
-  // Pair grid
+  // Pair grid with groups
   const pg = document.getElementById("deriv-pair-grid");
   if (pg) {
     pg.innerHTML = "";
+
+    // Group colors
+    const groupColors = {
+      VOLATILITY: "#3b82f6",
+      CRASH:      "#ff3b5c",
+      BOOM:       "#00e676",
+      STEP:       "#f5c842",
+      DRIFT:      "#a78bfa",
+      RANGE:      "#fb923c",
+      JUMP:       "#e879f9",
+    };
+
+    // Build groups
+    const groups = {};
     DERIV_PAIRS.forEach(p => {
-      const b = document.createElement("button");
-      b.className = "deriv-pair-btn" + (p.symbol === derivSymbol ? " active" : "");
-      b.textContent = p.label;
-      b.title = p.name;
-      b.onclick = () => {
-        derivSymbol = p.symbol;
-        derivLabel  = p.label;
-        document.querySelectorAll(".deriv-pair-btn").forEach(x => x.classList.remove("active"));
-        b.classList.add("active");
-        const lbl = document.getElementById("deriv-chart-pair");
-        if (lbl) lbl.textContent = p.label;
-        derivForgetAll();
-        derivSubscribeAll();
-      };
-      pg.appendChild(b);
+      if (!groups[p.group]) groups[p.group] = [];
+      groups[p.group].push(p);
+    });
+
+    Object.keys(groups).forEach(grp => {
+      // Group label
+      const lbl = document.createElement("div");
+      lbl.style.cssText = `
+        width:100%;font-family:var(--font-display);font-size:8px;
+        color:${groupColors[grp]||"#64748b"};letter-spacing:2px;
+        padding:6px 2px 4px;margin-top:4px;
+        border-top:1px solid rgba(255,255,255,0.05);
+      `;
+      lbl.textContent = grp + " INDICES";
+      pg.appendChild(lbl);
+
+      // Pair buttons for this group
+      groups[grp].forEach(p => {
+        const b = document.createElement("button");
+        b.className = "deriv-pair-btn" + (p.symbol === derivSymbol ? " active" : "");
+        b.textContent = p.label;
+        b.title = p.name;
+        b.style.borderColor = p.symbol === derivSymbol ? groupColors[grp] : "";
+        b.onclick = () => {
+          derivSymbol = p.symbol;
+          derivLabel  = p.label;
+          document.querySelectorAll(".deriv-pair-btn").forEach(x => {
+            x.classList.remove("active");
+            x.style.borderColor = "";
+          });
+          b.classList.add("active");
+          b.style.borderColor = groupColors[grp];
+          const chartLbl = document.getElementById("deriv-chart-pair");
+          if (chartLbl) chartLbl.textContent = p.label;
+          // Update chart toolbar color
+          const toolbar = document.querySelector(".deriv-chart-toolbar .dchart-pair");
+          if (toolbar) toolbar.style.color = groupColors[grp];
+          derivForgetAll();
+          derivSubscribeAll();
+        };
+        pg.appendChild(b);
+      });
     });
   }
 
