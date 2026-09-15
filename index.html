@@ -185,25 +185,11 @@
       </div>
     </div>
 
-    <!-- CUSTOM RINGTONE -->
+    <!-- RINGTONE MANAGER -->
     <div class="notif-section">
-      <div class="notif-section-title">🎵 CUSTOM RINGTONE</div>
-      <div class="notif-upload-wrap">
-        <span class="notif-upload-icon">🎵</span>
-        <span class="notif-upload-label">TAP TO UPLOAD YOUR RINGTONE</span>
-        <span style="font-family:var(--font-display);font-size:8px;color:var(--muted)">MP3 · WAV · OGG · M4A (max 5MB)</span>
-        <input type="file" class="notif-upload-input" accept="audio/*"
-          onchange="notifHandleFileUpload(this)">
-      </div>
-      <div class="notif-sound-info">
-        <div class="notif-sound-name-wrap">
-          <span>🔔</span>
-          <span id="notif-sound-name">Default tones</span>
-        </div>
-        <div class="notif-sound-actions">
-          <button class="notif-preview-btn" onclick="notifPlayCustomSound()">▶ PREVIEW</button>
-          <button class="notif-clear-btn" onclick="notifClearSound()">✕</button>
-        </div>
+      <div class="notif-section-title">🎵 RINGTONE SETTINGS</div>
+      <div id="rt-manager">
+        <div style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-display);font-size:10px">Loading...</div>
       </div>
     </div>
 

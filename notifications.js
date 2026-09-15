@@ -412,3 +412,171 @@ notifScanPair = async function(pair) {
   // Re-render chips with cross status
   notifRenderPairChips();
 };
+
+// ============================================
+// RINGTONE MANAGER — Full Featured
+// Choose from presets OR upload own file
+// ============================================
+
+const PRESETS = [
+  { id:"default",   name:"Default Beep",    fn: () => { if(typeof ringBuySignal==="function") ringBuySignal(); } },
+  { id:"chime",     name:"Chime",           fn: () => playPreset([523,659,784,1047],[0.15,0.15,0.15,0.4]) },
+  { id:"alert",     name:"Alert Buzz",      fn: () => playPreset([880,880,880],[0.1,0.1,0.2]) },
+  { id:"trumpet",   name:"Trumpet Fanfare", fn: () => playPreset([523,659,784,659,784,1047],[0.1,0.1,0.1,0.1,0.1,0.4]) },
+  { id:"bell",      name:"Bell Ring",       fn: () => playPreset([1047,784,1047,784,1047],[0.1,0.05,0.1,0.05,0.3]) },
+  { id:"ping",      name:"Soft Ping",       fn: () => playPreset([1319],[0.5]) },
+  { id:"siren",     name:"Siren",           fn: () => playPreset([440,880,440,880],[0.2,0.2,0.2,0.2]) },
+  { id:"casino",    name:"Casino Win",      fn: () => playPreset([523,659,784,1047,1319,1047,784,659,523],[0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.3]) },
+];
+
+let selectedPreset = localStorage.getItem("princex_preset") || "default";
+
+function playPreset(freqs, durs) {
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    let t = ctx.currentTime;
+    freqs.forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain= ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = f;
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + (durs[i]||0.2));
+      osc.start(t); osc.stop(t + (durs[i]||0.2));
+      t += (durs[i]||0.2) * 0.9;
+    });
+  } catch(e) { console.warn("Audio error:", e); }
+}
+
+function notifSelectPreset(id) {
+  selectedPreset = id;
+  localStorage.setItem("princex_preset", id);
+  document.querySelectorAll(".preset-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.id === id);
+  });
+  // Play preview
+  const preset = PRESETS.find(p => p.id === id);
+  if (preset) preset.fn();
+}
+
+function notifPlayCurrentSound(direction) {
+  // Custom uploaded file takes priority
+  if (NOTIF.customSound) {
+    const audio = new Audio(NOTIF.customSound);
+    audio.volume = 0.85;
+    audio.play().catch(()=>{});
+    return;
+  }
+  // Use selected preset
+  const preset = PRESETS.find(p => p.id === selectedPreset);
+  if (preset) preset.fn();
+}
+
+function renderRingtoneManager(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  el.innerHTML = `
+    <div class="rt-wrap">
+
+      <!-- PRESET SOUNDS -->
+      <div class="rt-section">
+        <div class="rt-title">🎵 CHOOSE RINGTONE</div>
+        <div class="rt-presets" id="rt-presets-grid">
+          ${PRESETS.map(p => `
+            <button class="preset-btn ${p.id===selectedPreset?"active":""}"
+              data-id="${p.id}"
+              onclick="notifSelectPreset('${p.id}')">
+              ${p.name}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+
+      <!-- DIVIDER -->
+      <div class="rt-or">
+        <span>— OR UPLOAD YOUR OWN —</span>
+      </div>
+
+      <!-- UPLOAD -->
+      <div class="rt-upload-zone" id="rt-drop-zone">
+        <input type="file" id="rt-file-input" accept="audio/*"
+          style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"
+          onchange="rtHandleUpload(this)">
+        <span class="rt-upload-icon">🎵</span>
+        <span class="rt-upload-text">
+          ${NOTIF.customSoundName
+            ? `<b style="color:var(--green)">${NOTIF.customSoundName}</b>`
+            : "Tap to upload MP3 / WAV / OGG"}
+        </span>
+        <span class="rt-upload-hint">Max 5MB · rings on every EMA cross</span>
+      </div>
+
+      <!-- CURRENT SOUND INFO -->
+      <div class="rt-current">
+        <div class="rt-current-label">NOW PLAYING ON CROSS:</div>
+        <div class="rt-current-name" id="rt-current-name">
+          ${NOTIF.customSoundName || PRESETS.find(p=>p.id===selectedPreset)?.name || "Default"}
+        </div>
+        <div class="rt-btns">
+          <button class="rt-test-btn" onclick="notifPlayCurrentSound()">▶ TEST SOUND</button>
+          ${NOTIF.customSoundName ? `<button class="rt-remove-btn" onclick="rtRemoveCustom()">✕ REMOVE FILE</button>` : ""}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+function rtHandleUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5*1024*1024) { alert("File too large — max 5MB"); return; }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    NOTIF.customSound     = e.target.result;
+    NOTIF.customSoundName = file.name;
+    localStorage.setItem("princex_ringtone",      e.target.result);
+    localStorage.setItem("princex_ringtone_name", file.name);
+
+    // Auto-preview
+    notifPlayCurrentSound();
+
+    // Re-render all ringtone managers
+    ["rt-manager","rt-manager-forex"].forEach(id => renderRingtoneManager(id));
+    notifShowStatus("✅ Ringtone saved: " + file.name, "success");
+  };
+  reader.readAsDataURL(file);
+}
+
+function rtRemoveCustom() {
+  NOTIF.customSound     = null;
+  NOTIF.customSoundName = null;
+  localStorage.removeItem("princex_ringtone");
+  localStorage.removeItem("princex_ringtone_name");
+  ["rt-manager","rt-manager-forex"].forEach(id => renderRingtoneManager(id));
+  notifShowStatus("🔕 File removed — using preset", "info");
+}
+
+// Override notifPlaySound to use new system
+notifPlaySound = function(direction) {
+  notifPlayCurrentSound(direction);
+};
+
+// Also override playSignalSound for Forex tab
+if (typeof playSignalSound !== "undefined") {
+  const _origPlay = playSignalSound;
+  playSignalSound = function(dir, tier) {
+    notifPlayCurrentSound(dir);
+  };
+}
+
+// Re-init to render ringtone manager
+const _origNotifInitSignalsTab = notifInitSignalsTab;
+notifInitSignalsTab = function() {
+  _origNotifInitSignalsTab();
+  notifLoadSavedSound();
+  renderRingtoneManager("rt-manager");
+};
