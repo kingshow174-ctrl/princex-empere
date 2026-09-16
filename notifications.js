@@ -1,105 +1,237 @@
 // ============================================
-// PRINCEX EMPERE — Smart Notification System
-// EMA Cross Monitor + Custom Ringtone Upload
+// PRINCEX EMPERE — Notification System v2
+// EMA Cross Monitor + 15 Second Ring
+// Custom Ringtone Upload + 8 Presets
 // ============================================
 
 const NOTIF = {
-  permission: false,
-  customSound: null,      // user uploaded audio
-  customSoundName: null,
-  audioCtx: null,
-  monitoring: false,
+  permission:   false,
+  customSound:  null,
+  customName:   null,
+  monitoring:   false,
   monitorTimer: null,
-  crossAlerts: [],        // history of cross alerts
-  lastCrossTime: {},      // throttle: pair → last alert time
-  THROTTLE_MS: 5 * 60 * 1000, // 5 min between same pair alerts
+  crossAlerts:  [],
+  lastCross:    {},
+  THROTTLE:     5 * 60 * 1000,
+  ringTimeout:  null,
+  ringAudio:    null,
 };
 
-// ── REQUEST PERMISSION ────────────────────────
+const PRESETS = [
+  { id:"chime",    name:"🔔 Chime",         freqs:[523,659,784,1047],        durs:[0.15,0.15,0.15,0.4]  },
+  { id:"alert",    name:"🚨 Alert",          freqs:[880,0,880,0,880],         durs:[0.1,0.1,0.1,0.1,0.2] },
+  { id:"trumpet",  name:"🎺 Trumpet",        freqs:[523,659,784,659,784,1047],durs:[0.1,0.1,0.1,0.1,0.1,0.5] },
+  { id:"bell",     name:"🔕 Bell",           freqs:[1047,784,1047],           durs:[0.1,0.1,0.4]         },
+  { id:"ping",     name:"✨ Ping",           freqs:[1319],                    durs:[0.6]                 },
+  { id:"siren",    name:"🚔 Siren",          freqs:[440,880,440,880,440,880], durs:[0.2,0.2,0.2,0.2,0.2,0.2] },
+  { id:"casino",   name:"🎰 Casino",         freqs:[523,659,784,1047,1319,784,523], durs:[0.08,0.08,0.08,0.08,0.08,0.08,0.3] },
+  { id:"rising",   name:"📈 Rising",         freqs:[262,330,392,523,659,784,1047], durs:[0.1,0.1,0.1,0.1,0.1,0.1,0.5] },
+];
 
-async function notifRequestPermission() {
-  if (!("Notification" in window)) return false;
-  if (Notification.permission === "granted") {
-    NOTIF.permission = true; return true;
-  }
-  const result = await Notification.requestPermission();
-  NOTIF.permission = result === "granted";
-  return NOTIF.permission;
+let selectedPreset = localStorage.getItem("px_preset") || "chime";
+
+// ── AUDIO HELPERS ─────────────────────────────
+
+function _playTones(freqs, durs) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let t = ctx.currentTime;
+    freqs.forEach((f, i) => {
+      if (!f) { t += durs[i] || 0.1; return; }
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = f;
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + (durs[i] || 0.2));
+      osc.start(t);
+      osc.stop(t + (durs[i] || 0.2));
+      t += (durs[i] || 0.2) * 0.95;
+    });
+    return t - ctx.currentTime; // total duration
+  } catch(e) { return 0; }
 }
 
-// ── CUSTOM RINGTONE UPLOAD ────────────────────
+// ── PLAY FOR 15 SECONDS ───────────────────────
 
-function notifHandleFileUpload(input) {
+function notifRing15sec() {
+  notifStopRing(); // stop any current ring
+
+  const endTime = Date.now() + 15000;
+
+  if (NOTIF.customSound) {
+    // Loop uploaded audio for 15 seconds
+    const audio = new Audio(NOTIF.customSound);
+    audio.loop   = true;
+    audio.volume = 0.85;
+    audio.play().catch(() => {});
+    NOTIF.ringAudio = audio;
+    NOTIF.ringTimeout = setTimeout(() => notifStopRing(), 15000);
+  } else {
+    // Loop preset tones for 15 seconds
+    const preset = PRESETS.find(p => p.id === selectedPreset) || PRESETS[0];
+    let remaining = 15000;
+
+    const loopTones = () => {
+      if (Date.now() >= endTime) return;
+      const dur = _playTones(preset.freqs, preset.durs) * 1000 + 300;
+      remaining -= dur;
+      if (remaining > 0) {
+        NOTIF.ringTimeout = setTimeout(loopTones, dur);
+      }
+    };
+    loopTones();
+  }
+
+  // Auto stop after 15s
+  setTimeout(notifStopRing, 15000);
+
+  // Show stop button
+  const stopBtn = document.getElementById("notif-stop-ring-btn");
+  if (stopBtn) stopBtn.style.display = "block";
+}
+
+function notifStopRing() {
+  clearTimeout(NOTIF.ringTimeout);
+  if (NOTIF.ringAudio) {
+    NOTIF.ringAudio.pause();
+    NOTIF.ringAudio.currentTime = 0;
+    NOTIF.ringAudio = null;
+  }
+  const stopBtn = document.getElementById("notif-stop-ring-btn");
+  if (stopBtn) stopBtn.style.display = "none";
+}
+
+function notifPreviewSound() {
+  notifStopRing();
+  if (NOTIF.customSound) {
+    const audio = new Audio(NOTIF.customSound);
+    audio.volume = 0.85;
+    audio.play().catch(() => {});
+    setTimeout(() => audio.pause(), 3000);
+  } else {
+    const preset = PRESETS.find(p => p.id === selectedPreset) || PRESETS[0];
+    _playTones(preset.freqs, preset.durs);
+  }
+}
+
+// ── PRESET SELECT ─────────────────────────────
+
+function notifSelectPreset(id) {
+  selectedPreset = id;
+  localStorage.setItem("px_preset", id);
+  document.querySelectorAll(".preset-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.id === id));
+  // Preview
+  const preset = PRESETS.find(p => p.id === id);
+  if (preset) _playTones(preset.freqs, preset.durs);
+}
+
+// ── FILE UPLOAD ───────────────────────────────
+
+function rtHandleUpload(input) {
   const file = input.files[0];
   if (!file) return;
-
-  const allowed = ["audio/mpeg","audio/wav","audio/ogg","audio/mp4","audio/webm"];
-  if (!allowed.includes(file.type)) {
-    notifShowStatus("❌ Use MP3, WAV, OGG or M4A files only", "error");
-    return;
-  }
   if (file.size > 5 * 1024 * 1024) {
-    notifShowStatus("❌ File too large (max 5MB)", "error");
-    return;
+    notifShowStatus("❌ File too large — max 5MB", "error"); return;
   }
-
   const reader = new FileReader();
   reader.onload = e => {
-    NOTIF.customSound     = e.target.result;
-    NOTIF.customSoundName = file.name;
-    localStorage.setItem("princex_ringtone_name", file.name);
-    localStorage.setItem("princex_ringtone",      e.target.result);
-    notifUpdateUI();
+    NOTIF.customSound = e.target.result;
+    NOTIF.customName  = file.name;
+    localStorage.setItem("px_ringtone",      e.target.result);
+    localStorage.setItem("px_ringtone_name", file.name);
     notifShowStatus("✅ Ringtone saved: " + file.name, "success");
-    notifPlayCustomSound(); // preview
+    renderRingtoneManager("rt-manager");
+    // Preview 3 seconds
+    const audio = new Audio(e.target.result);
+    audio.volume = 0.8;
+    audio.play().catch(() => {});
+    setTimeout(() => { audio.pause(); }, 3000);
   };
   reader.readAsDataURL(file);
 }
 
-function notifLoadSavedSound() {
-  const saved = localStorage.getItem("princex_ringtone");
-  const name  = localStorage.getItem("princex_ringtone_name");
-  if (saved) {
-    NOTIF.customSound     = saved;
-    NOTIF.customSoundName = name;
-  }
+function rtRemoveCustom() {
+  NOTIF.customSound = null;
+  NOTIF.customName  = null;
+  localStorage.removeItem("px_ringtone");
+  localStorage.removeItem("px_ringtone_name");
+  notifShowStatus("🔕 Removed — using preset", "info");
+  renderRingtoneManager("rt-manager");
 }
 
-function notifClearSound() {
-  NOTIF.customSound     = null;
-  NOTIF.customSoundName = null;
-  localStorage.removeItem("princex_ringtone");
-  localStorage.removeItem("princex_ringtone_name");
-  notifUpdateUI();
-  notifShowStatus("🔕 Ringtone removed — using default tones", "info");
+function notifLoadSaved() {
+  const s = localStorage.getItem("px_ringtone");
+  const n = localStorage.getItem("px_ringtone_name");
+  if (s) { NOTIF.customSound = s; NOTIF.customName = n; }
+  selectedPreset = localStorage.getItem("px_preset") || "chime";
 }
 
-function notifPlayCustomSound() {
-  if (NOTIF.customSound) {
-    const audio = new Audio(NOTIF.customSound);
-    audio.volume = 0.8;
-    audio.play().catch(e => console.warn("Audio play failed:", e));
-  } else {
-    if (typeof ringBuySignal === "function") ringBuySignal();
-  }
-}
+// ── RENDER RINGTONE MANAGER ───────────────────
 
-function notifPlaySound(direction) {
-  if (NOTIF.customSound) {
-    const audio = new Audio(NOTIF.customSound);
-    audio.volume = 0.8;
-    audio.play().catch(() => {});
-  } else {
-    if (typeof playSignalSound === "function")
-      playSignalSound(direction, "MODERATE");
-  }
+function renderRingtoneManager(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  el.innerHTML = `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:4px">
+
+      <div style="padding:12px 14px">
+        <div style="font-family:var(--font-display);font-size:9px;color:var(--gold);letter-spacing:2px;margin-bottom:10px">🎵 SELECT PRESET</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="preset-grid-${id}">
+          ${PRESETS.map(p => `
+            <button class="preset-btn ${p.id===selectedPreset?"active":""}"
+              data-id="${p.id}"
+              onclick="notifSelectPreset('${p.id}')">
+              ${p.name}
+            </button>`).join("")}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding:10px 14px;text-align:center;font-family:var(--font-display);font-size:9px;color:var(--muted);letter-spacing:1px">
+        — OR UPLOAD YOUR OWN FILE —
+      </div>
+
+      <div style="padding:0 14px 12px">
+        <div style="position:relative;background:var(--bg2);border:2px dashed ${NOTIF.customName?"var(--green)":"var(--border)"};border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="document.getElementById('rt-file-${id}').click()">
+          <input type="file" id="rt-file-${id}" accept="audio/*" style="display:none" onchange="rtHandleUpload(this)">
+          <span style="font-size:26px;display:block;margin-bottom:6px">🎵</span>
+          <span style="font-family:var(--font-display);font-size:10px;color:${NOTIF.customName?"var(--green)":"var(--text)"};display:block;margin-bottom:4px">
+            ${NOTIF.customName || "TAP TO UPLOAD MP3 / WAV / OGG"}
+          </span>
+          <span style="font-family:var(--font-display);font-size:8px;color:var(--muted)">Max 5MB · plays for 15 seconds on EMA cross</span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding:12px 14px">
+        <div style="font-family:var(--font-display);font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">ACTIVE RINGTONE</div>
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--gold);margin-bottom:10px">
+          ${NOTIF.customName || PRESETS.find(p=>p.id===selectedPreset)?.name || "Default"}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="notifPreviewSound()" style="flex:1;padding:9px;background:var(--green);color:#000;border:none;border-radius:8px;font-family:var(--font-display);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">▶ PREVIEW (3s)</button>
+          <button onclick="notifRing15sec()" style="flex:1;padding:9px;background:var(--bg2);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:var(--font-display);font-size:10px;cursor:pointer;letter-spacing:1px">🔔 TEST 15s</button>
+          ${NOTIF.customName?`<button onclick="rtRemoveCustom()" style="padding:9px 12px;background:transparent;color:var(--red);border:1px solid var(--red);border-radius:8px;font-size:11px;cursor:pointer">✕</button>`:""}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- STOP RING BUTTON -->
+    <button id="notif-stop-ring-btn" onclick="notifStopRing()" style="display:none;width:100%;margin-top:8px;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;animation:pulse 0.5s infinite">
+      ⏹ STOP RINGING
+    </button>
+  `;
 }
 
 // ── EMA CROSS DETECTION ───────────────────────
 
 function detectEMACross(candles) {
   if (candles.length < 52) return null;
-  const closes = candles.map(c => c.close);
+  const cl = candles.map(c => c.close);
 
   function ema(arr, p) {
     const k = 2/(p+1);
@@ -108,128 +240,93 @@ function detectEMACross(candles) {
     return e;
   }
 
-  // Current values
-  const e20now = ema(closes, 20);
-  const e50now = ema(closes, 50);
+  const e20now  = ema(cl, 20);
+  const e50now  = ema(cl, 50);
+  const e20prev = ema(cl.slice(0,-1), 20);
+  const e50prev = ema(cl.slice(0,-1), 50);
+  const last    = candles[candles.length-1];
 
-  // Previous candle values
-  const prev    = closes.slice(0, -1);
-  const e20prev = ema(prev, 20);
-  const e50prev = ema(prev, 50);
-
-  const last = candles[candles.length - 1];
-
-  // Golden cross: EMA20 crosses ABOVE EMA50
   if (e20prev <= e50prev && e20now > e50now) {
-    return {
-      type:      "GOLDEN CROSS",
-      signal:    "BUY",
-      direction: "BUY",
-      ema20:     e20now.toFixed(5),
-      ema50:     e50now.toFixed(5),
-      price:     last.close.toFixed(5),
-      strength:  Math.abs(e20now - e50now) / e50now * 100,
-    };
+    return { type:"GOLDEN CROSS 🟢", signal:"BUY",  e20:e20now.toFixed(5), e50:e50now.toFixed(5), price:last.close.toFixed(5) };
   }
-
-  // Death cross: EMA20 crosses BELOW EMA50
   if (e20prev >= e50prev && e20now < e50now) {
-    return {
-      type:      "DEATH CROSS",
-      signal:    "SELL",
-      direction: "SELL",
-      ema20:     e20now.toFixed(5),
-      ema50:     e50now.toFixed(5),
-      price:     last.close.toFixed(5),
-      strength:  Math.abs(e20now - e50now) / e50now * 100,
-    };
+    return { type:"DEATH CROSS 🔴",  signal:"SELL", e20:e20now.toFixed(5), e50:e50now.toFixed(5), price:last.close.toFixed(5) };
   }
-
   return null;
 }
 
-// ── MONITOR ALL PAIRS ─────────────────────────
+// ── FETCH CANDLES ─────────────────────────────
 
 async function notifFetchCandles(pair) {
-  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=1min&outputsize=60&apikey=${CONFIG.TWELVE_DATA_KEY}`;
-  const res  = await fetch(url);
-  const data = await res.json();
-  if (data.status === "error" || !data.values) return null;
-  return data.values.reverse().slice(0, -1).map(c => ({
-    open:  parseFloat(c.open),
-    high:  parseFloat(c.high),
-    low:   parseFloat(c.low),
-    close: parseFloat(c.close),
-  }));
+  try {
+    const url  = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=1min&outputsize=60&apikey=${CONFIG.TWELVE_DATA_KEY}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.status === "error" || !data.values) return null;
+    return data.values.reverse().slice(0,-1).map(c=>({
+      open:parseFloat(c.open),high:parseFloat(c.high),
+      low:parseFloat(c.low),close:parseFloat(c.close)
+    }));
+  } catch(e) { return null; }
 }
+
+// ── SCAN ONE PAIR ─────────────────────────────
 
 async function notifScanPair(pair) {
-  try {
-    // Throttle — don't alert same pair too often
-    const lastTime = NOTIF.lastCrossTime[pair] || 0;
-    if (Date.now() - lastTime < NOTIF.THROTTLE_MS) return;
+  const last = NOTIF.lastCross[pair] || 0;
+  if (Date.now() - last < NOTIF.THROTTLE) return;
 
-    const candles = await notifFetchCandles(pair);
-    if (!candles || candles.length < 52) return;
+  const candles = await notifFetchCandles(pair);
+  if (!candles || candles.length < 52) return;
 
-    const cross = detectEMACross(candles);
-    if (!cross) return;
+  const cross = detectEMACross(candles);
+  if (!cross) return;
 
-    // Got a cross! Alert
-    NOTIF.lastCrossTime[pair] = Date.now();
-    const alert = {
-      id:        Date.now(),
-      pair,
-      type:      cross.type,
-      signal:    cross.signal,
-      direction: cross.direction,
-      price:     cross.price,
-      ema20:     cross.ema20,
-      ema50:     cross.ema50,
-      time:      new Date().toLocaleTimeString(),
-      timestamp: Date.now(),
-    };
+  NOTIF.lastCross[pair] = Date.now();
 
-    NOTIF.crossAlerts.unshift(alert);
-    if (NOTIF.crossAlerts.length > 50) NOTIF.crossAlerts.pop();
+  const alert = {
+    id:        Date.now(),
+    pair,
+    type:      cross.type,
+    signal:    cross.signal,
+    price:     cross.price,
+    ema20:     cross.e20,
+    ema50:     cross.e50,
+    time:      new Date().toLocaleTimeString(),
+  };
 
-    // 1. Play sound
-    notifPlaySound(cross.direction);
+  NOTIF.crossAlerts.unshift(alert);
+  if (NOTIF.crossAlerts.length > 100) NOTIF.crossAlerts.pop();
 
-    // 2. Browser notification
-    if (NOTIF.permission) {
-      const icon  = cross.signal === "BUY" ? "🟢" : "🔴";
-      const notif = new Notification(
-        `${icon} ${cross.type} — ${pair}`,
+  // 🔔 RING FOR 15 SECONDS
+  notifRing15sec();
+
+  // Browser notification
+  if (NOTIF.permission) {
+    try {
+      const n = new Notification(
+        `${cross.signal === "BUY" ? "🟢" : "🔴"} ${cross.type} — ${pair}`,
         {
-          body: `Signal: ${cross.signal} at ${cross.price}\nEMA20: ${cross.ema20} | EMA50: ${cross.ema50}\n${new Date().toLocaleTimeString()}`,
-          icon: "/icon.svg",
-          badge:"/icon.svg",
-          tag:  pair + "_cross",
-          requireInteraction: false,
+          body:  `Entry: ${cross.price} · EMA20: ${cross.e20} · EMA50: ${cross.e50}`,
+          icon:  "/icon.svg",
+          tag:   pair,
+          requireInteraction: true,
         }
       );
-      notif.onclick = () => {
-        window.focus();
-        notifShowAlertPage();
-        notif.close();
-      };
-      setTimeout(() => notif.close(), 8000);
-    }
-
-    // 3. Add to signal page
-    notifAddToSignalPage(alert);
-
-    // 4. Update alerts list
-    notifRenderAlerts();
-
-    console.log("🔔 EMA CROSS:", cross.type, pair, cross.signal);
-  } catch(e) {
-    // Silent fail for individual pairs
+      n.onclick = () => { window.focus(); switchTab("signals"); n.close(); };
+      setTimeout(() => n.close(), 15000);
+    } catch(e) {}
   }
+
+  // Add to signal list
+  notifAddCard(alert);
+  notifUpdateBadge();
+  notifRenderPairChips();
 }
 
-async function notifScanAllMarkets() {
+// ── SCAN ALL MARKETS ──────────────────────────
+
+async function notifScanAll() {
   if (!NOTIF.monitoring) return;
 
   const pairs = typeof PAIRS !== "undefined" ? PAIRS : [
@@ -238,50 +335,63 @@ async function notifScanAllMarkets() {
     "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD"
   ];
 
-  // Scan pairs with 500ms delay between each (rate limit)
+  const statusEl = document.getElementById("notif-monitor-status");
+  if (statusEl) statusEl.textContent = "SCANNING " + pairs.length + " PAIRS...";
+
   for (let i = 0; i < pairs.length; i++) {
     if (!NOTIF.monitoring) break;
+    // Highlight current pair
+    document.querySelectorAll(".notif-pair-chip").forEach(c => {
+      c.classList.toggle("scanning", c.textContent === pairs[i]);
+    });
     await notifScanPair(pairs[i]);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
   }
+
+  document.querySelectorAll(".notif-pair-chip").forEach(c => c.classList.remove("scanning"));
+  if (statusEl && NOTIF.monitoring) statusEl.textContent = "MONITORING · Next scan in 60s";
 }
 
-// ── START / STOP MONITORING ───────────────────
+// ── START / STOP ──────────────────────────────
 
 async function notifStartMonitoring() {
-  await notifRequestPermission();
+  // Request notification permission
+  if ("Notification" in window && Notification.permission !== "granted") {
+    await Notification.requestPermission();
+  }
+  NOTIF.permission = Notification?.permission === "granted";
   NOTIF.monitoring = true;
-
-  // Scan immediately then every 60 seconds
-  notifScanAllMarkets();
-  NOTIF.monitorTimer = setInterval(notifScanAllMarkets, 60000);
 
   notifUpdateUI();
   notifShowStatus("🔍 Monitoring ALL markets for EMA crosses...", "success");
+  notifScanAll();
+  NOTIF.monitorTimer = setInterval(notifScanAll, 60000);
 }
 
 function notifStopMonitoring() {
   NOTIF.monitoring = false;
   clearInterval(NOTIF.monitorTimer);
+  notifStopRing();
   notifUpdateUI();
   notifShowStatus("⏸ Monitoring stopped", "info");
+  const statusEl = document.getElementById("notif-monitor-status");
+  if (statusEl) statusEl.textContent = "IDLE";
 }
 
-// ── SIGNAL PAGE ───────────────────────────────
+// ── SIGNAL CARDS ──────────────────────────────
 
-function notifAddToSignalPage(alert) {
+function notifAddCard(alert) {
   const list = document.getElementById("cross-signal-list");
   if (!list) return;
+  list.querySelector(".notif-empty")?.remove();
 
-  const empty = list.querySelector(".notif-empty");
-  if (empty) empty.remove();
-
-  const item = document.createElement("div");
-  item.className = "cross-signal-item " + (alert.signal === "BUY" ? "buy" : "sell");
-  item.innerHTML = `
+  const isBuy = alert.signal === "BUY";
+  const card  = document.createElement("div");
+  card.className = "cross-signal-item " + (isBuy ? "buy" : "sell");
+  card.innerHTML = `
     <div class="cs-header">
       <span class="cs-pair">${alert.pair}</span>
-      <span class="cs-type ${alert.signal === "BUY" ? "bull" : "bear"}">${alert.signal === "BUY" ? "⬆ BUY" : "⬇ SELL"}</span>
+      <span class="cs-type ${isBuy?"bull":"bear"}">${isBuy?"⬆ BUY":"⬇ SELL"}</span>
       <span class="cs-time">${alert.time}</span>
     </div>
     <div class="cs-body">
@@ -293,45 +403,34 @@ function notifAddToSignalPage(alert) {
       <span>EMA50: ${alert.ema50}</span>
     </div>
     <div class="cs-actions">
-      <button class="cs-btn-trade" onclick="window.selectedPair='${alert.pair}';switchTab('forex')">
+      <button class="cs-btn-trade" onclick="window.selectedPair='${alert.pair}';document.querySelectorAll('.pair-btn').forEach(b=>{b.classList.toggle('active',b.textContent==='${alert.pair}')});switchTab('forex')">
         📊 OPEN CHART
+      </button>
+      <button onclick="notifRing15sec()" style="padding:8px 12px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);border-radius:8px;font-size:11px;cursor:pointer">
+        🔔 RING
       </button>
     </div>
   `;
-  list.prepend(item);
-
-  // Badge update
-  const badge = document.getElementById("notif-badge");
-  if (badge) {
-    const count = parseInt(badge.textContent || "0") + 1;
-    badge.textContent = count;
-    badge.style.display = "flex";
-  }
-}
-
-function notifRenderAlerts() {
-  const list = document.getElementById("cross-signal-list");
-  if (!list || !NOTIF.crossAlerts.length) return;
-
-  list.innerHTML = "";
-  NOTIF.crossAlerts.forEach(alert => notifAddToSignalPage(alert));
-}
-
-function notifShowAlertPage() {
-  switchTab("signals");
-  const badge = document.getElementById("notif-badge");
-  if (badge) badge.style.display = "none";
+  list.prepend(card);
 }
 
 function notifClearAlerts() {
   NOTIF.crossAlerts = [];
   const list = document.getElementById("cross-signal-list");
-  if (list) list.innerHTML = `<div class="notif-empty">No EMA cross signals yet. Start monitoring to detect crosses.</div>`;
+  if (list) list.innerHTML = '<div class="notif-empty">No signals yet. Start monitoring.</div>';
   const badge = document.getElementById("notif-badge");
   if (badge) badge.style.display = "none";
 }
 
-// ── UI HELPERS ────────────────────────────────
+function notifUpdateBadge() {
+  const badge = document.getElementById("notif-badge");
+  if (!badge) return;
+  const count = NOTIF.crossAlerts.length;
+  badge.textContent = count > 9 ? "9+" : count;
+  badge.style.display = count > 0 ? "flex" : "none";
+}
+
+// ── UI ────────────────────────────────────────
 
 function notifUpdateUI() {
   const btn = document.getElementById("notif-monitor-btn");
@@ -341,242 +440,46 @@ function notifUpdateUI() {
   }
   const dot = document.getElementById("notif-status-dot");
   if (dot) dot.className = "notif-dot " + (NOTIF.monitoring ? "active" : "");
-  const status = document.getElementById("notif-sound-name");
-  if (status) status.textContent = NOTIF.customSoundName || "Default tones";
 }
 
 function notifShowStatus(msg, type) {
   const el = document.getElementById("notif-status-msg");
   if (!el) return;
-  el.textContent = msg;
-  el.className   = "notif-status " + type;
+  el.textContent   = msg;
+  el.className     = "notif-status " + type;
   el.style.display = "block";
   setTimeout(() => el.style.display = "none", 4000);
-}
-
-// ── INIT ──────────────────────────────────────
-
-function notifInit() {
-  notifLoadSavedSound();
-  notifRequestPermission();
-  notifUpdateUI();
-}
-
-// ── SIGNALS TAB INIT ──────────────────────────
-
-function notifInitSignalsTab() {
-  notifInit();
-  notifRenderPairChips();
-
-  // Clear badge
-  const badge = document.getElementById("notif-badge");
-  if (badge) badge.style.display = "none";
 }
 
 function notifRenderPairChips() {
   const el = document.getElementById("notif-scan-pairs");
   if (!el) return;
-
   const pairs = typeof PAIRS !== "undefined" ? PAIRS : [
     "EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD",
     "EUR/GBP","GBP/JPY","EUR/JPY","NZD/USD","USD/CHF",
-    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD",
-    "BTC/USD","ETH/USD"
+    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD"
   ];
-
   el.innerHTML = pairs.map(p => {
-    const hasCross = NOTIF.crossAlerts.find(a => a.pair === p);
-    const cls = hasCross
-      ? (hasCross.signal === "BUY" ? "crossed-buy" : "crossed-sell")
-      : "";
+    const cross = NOTIF.crossAlerts.find(a => a.pair === p);
+    const cls   = cross ? (cross.signal==="BUY"?"crossed-buy":"crossed-sell") : "";
     return `<span class="notif-pair-chip ${cls}">${p}</span>`;
   }).join("");
 }
 
-// Update pair chips during scan
-const _origScanPair = notifScanPair;
-notifScanPair = async function(pair) {
-  // Highlight chip as scanning
-  const chips = document.querySelectorAll(".notif-pair-chip");
-  chips.forEach(c => { if (c.textContent === pair) c.classList.add("scanning"); });
+// ── INIT ──────────────────────────────────────
 
-  await _origScanPair(pair);
-
-  // Remove scanning highlight
-  chips.forEach(c => { if (c.textContent === pair) c.classList.remove("scanning"); });
-
-  // Update status
-  const monStatus = document.getElementById("notif-monitor-status");
-  if (monStatus && NOTIF.monitoring) monStatus.textContent = "SCANNING";
-
-  // Re-render chips with cross status
+function notifInitSignalsTab() {
+  notifLoadSaved();
+  notifUpdateUI();
   notifRenderPairChips();
-};
-
-// ============================================
-// RINGTONE MANAGER — Full Featured
-// Choose from presets OR upload own file
-// ============================================
-
-const PRESETS = [
-  { id:"default",   name:"Default Beep",    fn: () => { if(typeof ringBuySignal==="function") ringBuySignal(); } },
-  { id:"chime",     name:"Chime",           fn: () => playPreset([523,659,784,1047],[0.15,0.15,0.15,0.4]) },
-  { id:"alert",     name:"Alert Buzz",      fn: () => playPreset([880,880,880],[0.1,0.1,0.2]) },
-  { id:"trumpet",   name:"Trumpet Fanfare", fn: () => playPreset([523,659,784,659,784,1047],[0.1,0.1,0.1,0.1,0.1,0.4]) },
-  { id:"bell",      name:"Bell Ring",       fn: () => playPreset([1047,784,1047,784,1047],[0.1,0.05,0.1,0.05,0.3]) },
-  { id:"ping",      name:"Soft Ping",       fn: () => playPreset([1319],[0.5]) },
-  { id:"siren",     name:"Siren",           fn: () => playPreset([440,880,440,880],[0.2,0.2,0.2,0.2]) },
-  { id:"casino",    name:"Casino Win",      fn: () => playPreset([523,659,784,1047,1319,1047,784,659,523],[0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.3]) },
-];
-
-let selectedPreset = localStorage.getItem("princex_preset") || "default";
-
-function playPreset(freqs, durs) {
-  try {
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    let t = ctx.currentTime;
-    freqs.forEach((f, i) => {
-      const osc = ctx.createOscillator();
-      const gain= ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = f;
-      osc.type = "sine";
-      gain.gain.setValueAtTime(0.3, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + (durs[i]||0.2));
-      osc.start(t); osc.stop(t + (durs[i]||0.2));
-      t += (durs[i]||0.2) * 0.9;
-    });
-  } catch(e) { console.warn("Audio error:", e); }
-}
-
-function notifSelectPreset(id) {
-  selectedPreset = id;
-  localStorage.setItem("princex_preset", id);
-  document.querySelectorAll(".preset-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.id === id);
-  });
-  // Play preview
-  const preset = PRESETS.find(p => p.id === id);
-  if (preset) preset.fn();
-}
-
-function notifPlayCurrentSound(direction) {
-  // Custom uploaded file takes priority
-  if (NOTIF.customSound) {
-    const audio = new Audio(NOTIF.customSound);
-    audio.volume = 0.85;
-    audio.play().catch(()=>{});
-    return;
-  }
-  // Use selected preset
-  const preset = PRESETS.find(p => p.id === selectedPreset);
-  if (preset) preset.fn();
-}
-
-function renderRingtoneManager(containerId) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-
-  el.innerHTML = `
-    <div class="rt-wrap">
-
-      <!-- PRESET SOUNDS -->
-      <div class="rt-section">
-        <div class="rt-title">🎵 CHOOSE RINGTONE</div>
-        <div class="rt-presets" id="rt-presets-grid">
-          ${PRESETS.map(p => `
-            <button class="preset-btn ${p.id===selectedPreset?"active":""}"
-              data-id="${p.id}"
-              onclick="notifSelectPreset('${p.id}')">
-              ${p.name}
-            </button>
-          `).join("")}
-        </div>
-      </div>
-
-      <!-- DIVIDER -->
-      <div class="rt-or">
-        <span>— OR UPLOAD YOUR OWN —</span>
-      </div>
-
-      <!-- UPLOAD -->
-      <div class="rt-upload-zone" id="rt-drop-zone">
-        <input type="file" id="rt-file-input" accept="audio/*"
-          style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"
-          onchange="rtHandleUpload(this)">
-        <span class="rt-upload-icon">🎵</span>
-        <span class="rt-upload-text">
-          ${NOTIF.customSoundName
-            ? `<b style="color:var(--green)">${NOTIF.customSoundName}</b>`
-            : "Tap to upload MP3 / WAV / OGG"}
-        </span>
-        <span class="rt-upload-hint">Max 5MB · rings on every EMA cross</span>
-      </div>
-
-      <!-- CURRENT SOUND INFO -->
-      <div class="rt-current">
-        <div class="rt-current-label">NOW PLAYING ON CROSS:</div>
-        <div class="rt-current-name" id="rt-current-name">
-          ${NOTIF.customSoundName || PRESETS.find(p=>p.id===selectedPreset)?.name || "Default"}
-        </div>
-        <div class="rt-btns">
-          <button class="rt-test-btn" onclick="notifPlayCurrentSound()">▶ TEST SOUND</button>
-          ${NOTIF.customSoundName ? `<button class="rt-remove-btn" onclick="rtRemoveCustom()">✕ REMOVE FILE</button>` : ""}
-        </div>
-      </div>
-
-    </div>
-  `;
-}
-
-function rtHandleUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (file.size > 5*1024*1024) { alert("File too large — max 5MB"); return; }
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    NOTIF.customSound     = e.target.result;
-    NOTIF.customSoundName = file.name;
-    localStorage.setItem("princex_ringtone",      e.target.result);
-    localStorage.setItem("princex_ringtone_name", file.name);
-
-    // Auto-preview
-    notifPlayCurrentSound();
-
-    // Re-render all ringtone managers
-    ["rt-manager","rt-manager-forex"].forEach(id => renderRingtoneManager(id));
-    notifShowStatus("✅ Ringtone saved: " + file.name, "success");
-  };
-  reader.readAsDataURL(file);
-}
-
-function rtRemoveCustom() {
-  NOTIF.customSound     = null;
-  NOTIF.customSoundName = null;
-  localStorage.removeItem("princex_ringtone");
-  localStorage.removeItem("princex_ringtone_name");
-  ["rt-manager","rt-manager-forex"].forEach(id => renderRingtoneManager(id));
-  notifShowStatus("🔕 File removed — using preset", "info");
-}
-
-// Override notifPlaySound to use new system
-notifPlaySound = function(direction) {
-  notifPlayCurrentSound(direction);
-};
-
-// Also override playSignalSound for Forex tab
-if (typeof playSignalSound !== "undefined") {
-  const _origPlay = playSignalSound;
-  playSignalSound = function(dir, tier) {
-    notifPlayCurrentSound(dir);
-  };
-}
-
-// Re-init to render ringtone manager
-const _origNotifInitSignalsTab = notifInitSignalsTab;
-notifInitSignalsTab = function() {
-  _origNotifInitSignalsTab();
-  notifLoadSavedSound();
   renderRingtoneManager("rt-manager");
-};
+  // Clear badge
+  const badge = document.getElementById("notif-badge");
+  if (badge) badge.style.display = "none";
+}
+
+function notifInit() {
+  notifLoadSaved();
+}
+
+document.addEventListener("DOMContentLoaded", notifInit);
