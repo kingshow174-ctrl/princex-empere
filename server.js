@@ -1,8 +1,9 @@
 const express = require("express");
 const path    = require("path");
 const app     = express();
+app.use(express.json());
 
-// Serve config with keys from environment
+// Config endpoint
 app.get("/config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   const config = {
@@ -14,46 +15,19 @@ app.get("/config.js", (req, res) => {
     EXPIRY_CANDLES:    3
   };
   const pairs = ["EUR/USD","CAD/JPY","GBP/AUD","EUR/GBP","EUR/CAD","GBP/CAD","GBP/JPY","AUD/USD","CHF/JPY","AUD/CHF","GBP/CHF","AUD/CAD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","EUR/JPY","EUR/AUD","EUR/NZD","EUR/CHF","AUD/JPY","AUD/NZD","CAD/CHF","NZD/USD","NZD/JPY","NZD/CAD","NZD/CHF","XAU/USD","BTC/USD","ETH/USD"];
-  res.send(`
-const CONFIG = ${JSON.stringify(config)};
-const PAIRS  = ${JSON.stringify(pairs)};
-window.selectedPair = "EUR/USD";
-function resolveSymbol(pair){
-  if(pair==="XAU/USD")return"TVC:GOLD";
-  if(pair==="BTC/USD")return"BINANCE:BTCUSDT";
-  if(pair==="ETH/USD")return"BINANCE:ETHUSDT";
-  return"FX:"+pair.replace("/","");
-}
-document.addEventListener("DOMContentLoaded",()=>{
-  const grid=document.getElementById("pair-grid");
-  if(!grid)return;
-  PAIRS.forEach(pair=>{
-    const btn=document.createElement("button");
-    btn.className="pair-btn"+(pair==="EUR/USD"?" active":"");
-    btn.textContent=pair;
-    btn.onclick=()=>{
-      document.querySelectorAll(".pair-btn").forEach(b=>b.classList.remove("active"));
-      btn.classList.add("active");
-      window.selectedPair=pair;
-      if(window.loadTradingViewChart)loadTradingViewChart(resolveSymbol(pair));
-      const el=document.getElementById("signal-pair-display");
-      if(el)el.textContent=pair+" selected";
-    };
-    grid.appendChild(btn);
-  });
-});`);
+  res.send(`const CONFIG=${JSON.stringify(config)};const PAIRS=${JSON.stringify(pairs)};window.selectedPair="EUR/USD";function resolveSymbol(p){if(p==="XAU/USD")return"TVC:GOLD";if(p==="BTC/USD")return"BINANCE:BTCUSDT";if(p==="ETH/USD")return"BINANCE:ETHUSDT";return"FX:"+p.replace("/","");}document.addEventListener("DOMContentLoaded",()=>{const g=document.getElementById("pair-grid");if(!g)return;PAIRS.forEach(pair=>{const b=document.createElement("button");b.className="pair-btn"+(pair==="EUR/USD"?" active":"");b.textContent=pair;b.onclick=()=>{document.querySelectorAll(".pair-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");window.selectedPair=pair;if(window.loadTradingViewChart)loadTradingViewChart(resolveSymbol(pair));const el=document.getElementById("signal-pair-display");if(el)el.textContent=pair+" selected";};g.appendChild(b);});});`);
 });
 
-// Serve Gemini key
+// Gemini key
 app.get("/gemini-config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   res.send(`window.GEMINI_API_KEY="${process.env.GEMINI_KEY||""}";`);
 });
 
-// Health check — keeps app awake
+// Health check
 app.get("/health", (req, res) => res.send("OK"));
 
-// Serve all static files
+// Static files
 app.use(express.static(path.join(__dirname)));
 
 // SPA fallback
@@ -61,39 +35,11 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Keep alive ping to Render
+setInterval(() => {
+  const url = process.env.RENDER_EXTERNAL_URL || "https://princex-empere.onrender.com";
+  fetch(url + "/health").catch(() => {});
+}, 14 * 60 * 1000);
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("PRINCEX EMPERE on port " + PORT));
-
-// Deriv OAuth token exchange (server-side only — never expose in browser)
-app.post("/api/deriv-token", async (req, res) => {
-  try {
-    const { code, codeVerifier, redirectUri } = req.body;
-    const clientId = process.env.DERIV_CLIENT_ID;
-
-    if (!clientId) {
-      return res.status(500).json({ error: "DERIV_CLIENT_ID not configured" });
-    }
-
-    const body = new URLSearchParams({
-      grant_type:    "authorization_code",
-      client_id:     clientId,
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri:  redirectUri,
-    });
-
-    const response = await fetch("https://auth.deriv.com/oauth2/token", {
-      method:  "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:    body.toString(),
-    });
-
-    const data = await response.json();
-    res.json(data);
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Parse JSON bodies
-app.use(express.json());
+app.listen(PORT, () => console.log("PRINCEX EMPERE running on port " + PORT));
