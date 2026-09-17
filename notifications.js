@@ -257,8 +257,19 @@ function detectEMACross(candles) {
 
 // ── FETCH CANDLES ─────────────────────────────
 
+// Deriv synthetic symbols — fetch via WebSocket
+const DERIV_SYMS = ["1HZ10V","1HZ25V","1HZ50V","1HZ75V","1HZ100V",
+  "R_10","R_25","R_50","R_75","R_100",
+  "CRASH300N","CRASH500","CRASH900","CRASH1000","CRASH2000",
+  "BOOM300N","BOOM500","BOOM1000","BOOM2000"];
+
 async function notifFetchCandles(pair) {
   try {
+    // Deriv synthetic — use WebSocket API
+    if (DERIV_SYMS.includes(pair)) {
+      return await notifFetchDerivCandles(pair);
+    }
+    // Forex — use Twelve Data
     const url  = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=1min&outputsize=60&apikey=${CONFIG.TWELVE_DATA_KEY}`;
     const res  = await fetch(url);
     const data = await res.json();
@@ -268,6 +279,34 @@ async function notifFetchCandles(pair) {
       low:parseFloat(c.low),close:parseFloat(c.close)
     }));
   } catch(e) { return null; }
+}
+
+async function notifFetchDerivCandles(symbol) {
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket("wss://ws.binaryws.com/websockets/v3?app_id=1089");
+      const timeout = setTimeout(() => { ws.close(); resolve(null); }, 10000);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          ticks_history: symbol, count: 60,
+          end: "latest", granularity: 60,
+          style: "candles", adjust_start_time: 1
+        }));
+      };
+      ws.onmessage = e => {
+        const data = JSON.parse(e.data);
+        clearTimeout(timeout);
+        ws.close();
+        if (data.candles && data.candles.length > 1) {
+          resolve(data.candles.slice(0,-1).map(c=>({
+            open:parseFloat(c.open), high:parseFloat(c.high),
+            low:parseFloat(c.low),  close:parseFloat(c.close)
+          })));
+        } else resolve(null);
+      };
+      ws.onerror = () => { clearTimeout(timeout); resolve(null); };
+    } catch(e) { resolve(null); }
+  });
 }
 
 // ── SCAN ONE PAIR ─────────────────────────────
@@ -329,10 +368,19 @@ async function notifScanPair(pair) {
 async function notifScanAll() {
   if (!NOTIF.monitoring) return;
 
-  const pairs = typeof PAIRS !== "undefined" ? PAIRS : [
+  const pairs = [
+    // ── FOREX ──
     "EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD",
     "EUR/GBP","GBP/JPY","EUR/JPY","NZD/USD","USD/CHF",
-    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD"
+    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD",
+    "EUR/CAD","GBP/CAD","AUD/NZD","NZD/JPY","CHF/JPY",
+    // ── VOLATILITY INDICES ──
+    "1HZ10V","1HZ25V","1HZ50V","1HZ75V","1HZ100V",
+    "R_10","R_25","R_50","R_75","R_100",
+    // ── CRASH INDICES ──
+    "CRASH300N","CRASH500","CRASH900","CRASH1000","CRASH2000",
+    // ── BOOM INDICES ──
+    "BOOM300N","BOOM500","BOOM1000","BOOM2000",
   ];
 
   const statusEl = document.getElementById("notif-monitor-status");
@@ -454,10 +502,19 @@ function notifShowStatus(msg, type) {
 function notifRenderPairChips() {
   const el = document.getElementById("notif-scan-pairs");
   if (!el) return;
-  const pairs = typeof PAIRS !== "undefined" ? PAIRS : [
+  const pairs = [
+    // ── FOREX ──
     "EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD",
     "EUR/GBP","GBP/JPY","EUR/JPY","NZD/USD","USD/CHF",
-    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD"
+    "GBP/AUD","EUR/AUD","AUD/JPY","CAD/JPY","XAU/USD",
+    "EUR/CAD","GBP/CAD","AUD/NZD","NZD/JPY","CHF/JPY",
+    // ── VOLATILITY INDICES ──
+    "1HZ10V","1HZ25V","1HZ50V","1HZ75V","1HZ100V",
+    "R_10","R_25","R_50","R_75","R_100",
+    // ── CRASH INDICES ──
+    "CRASH300N","CRASH500","CRASH900","CRASH1000","CRASH2000",
+    // ── BOOM INDICES ──
+    "BOOM300N","BOOM500","BOOM1000","BOOM2000",
   ];
   el.innerHTML = pairs.map(p => {
     const cross = NOTIF.crossAlerts.find(a => a.pair === p);
