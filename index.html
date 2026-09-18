@@ -21,9 +21,8 @@
 
 <!-- ═══ AUTH SCREEN ═══ -->
 <div id="auth-screen" style="display:none">
-  <div id="auth-form-container" style="width:100%;max-width:420px">
-    <!-- Rendered by renderAuthForm() in auth.js -->
-    <div style="text-align:center;padding:40px;color:var(--muted);font-family:var(--font-display);font-size:11px">LOADING...</div>
+  <div id="auth-form-container" style="width:100%;max-width:420px;padding:20px;box-sizing:border-box">
+    <div style="text-align:center;padding:40px;color:var(--muted);font-family:var(--font-display);font-size:11px;letter-spacing:1px">LOADING...</div>
   </div>
 </div>
 
@@ -403,11 +402,10 @@
 <script src="app.js"></script>
 
 <script>
-  try {
-    db = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  // Init auth
+  if (typeof initAuth === "function") {
     initAuth();
-  } catch(e) {
-    console.error(e);
+  } else {
     document.getElementById("main-app").style.display = "block";
     document.getElementById("auth-screen").style.display = "none";
   }
