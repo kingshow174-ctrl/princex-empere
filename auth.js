@@ -1,11 +1,26 @@
 // ============================================
-// PRINCEX EMPERE — Complete Auth System
+// PRINCEX EMPERE — Auth System
+// Fixed: waits for CONFIG before Supabase init
 // ============================================
 
 let currentUser = null;
 let db          = null;
 
 function initAuth() {
+  // Wait until CONFIG is available
+  if (typeof CONFIG === "undefined" || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
+    console.warn("CONFIG not ready, retrying...");
+    setTimeout(initAuth, 200);
+    return;
+  }
+
+  // Validate keys look real
+  if (!CONFIG.SUPABASE_ANON_KEY.startsWith("eyJ")) {
+    console.warn("Invalid Supabase key, showing app anyway");
+    showApp();
+    return;
+  }
+
   // Init Supabase
   try {
     db = window.supabase.createClient(
@@ -13,8 +28,9 @@ function initAuth() {
       CONFIG.SUPABASE_ANON_KEY
     );
   } catch(e) {
-    console.warn("Supabase failed:", e.message);
-    showApp(); return;
+    console.warn("Supabase init failed:", e.message);
+    showApp();
+    return;
   }
 
   // Check existing session
@@ -25,9 +41,12 @@ function initAuth() {
     } else {
       showAuthScreen("signin");
     }
-  }).catch(() => showAuthScreen("signin"));
+  }).catch(e => {
+    console.warn("Session check failed:", e.message);
+    showAuthScreen("signin");
+  });
 
-  // Listen for changes
+  // Listen for auth state changes
   db.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_IN" && session?.user) {
       currentUser = session.user;
@@ -49,12 +68,14 @@ async function signUp() {
 
   clearMsg();
 
-  if (!name)               return showErr("Please enter your full name");
-  if (!email)              return showErr("Please enter your email");
+  if (!name)                        return showErr("Please enter your full name");
+  if (!email)                       return showErr("Please enter your email");
   if (!/\S+@\S+\.\S+/.test(email)) return showErr("Enter a valid email address");
-  if (!pass)               return showErr("Please enter a password");
-  if (pass.length < 6)     return showErr("Password must be at least 6 characters");
-  if (pass !== conf)       return showErr("Passwords do not match");
+  if (!pass)                        return showErr("Please enter a password");
+  if (pass.length < 6)              return showErr("Password must be at least 6 characters");
+  if (pass !== conf)                return showErr("Passwords do not match");
+
+  if (!db) return showErr("Connection error. Please refresh and try again.");
 
   setLoading(true, "CREATING ACCOUNT...");
 
@@ -62,10 +83,15 @@ async function signUp() {
     const { data, error } = await db.auth.signUp({
       email,
       password: pass,
-      options:  { data: { full_name: name } }
+      options: { data: { full_name: name } }
     });
 
-    if (error) return showErr(error.message);
+    if (error) {
+      if (error.message.includes("already registered")) {
+        return showErr("This email is already registered. Please sign in.");
+      }
+      return showErr(error.message);
+    }
 
     if (data.user && !data.session) {
       showOk("✅ Account created! Check your email to confirm, then sign in.");
@@ -91,6 +117,7 @@ async function signIn() {
 
   if (!email) return showErr("Please enter your email");
   if (!pass)  return showErr("Please enter your password");
+  if (!db)    return showErr("Connection error. Please refresh.");
 
   setLoading(true, "SIGNING IN...");
 
@@ -98,7 +125,15 @@ async function signIn() {
     const { data, error } = await db.auth.signInWithPassword({
       email, password: pass
     });
-    if (error) return showErr(error.message);
+    if (error) {
+      if (error.message.includes("Invalid login")) {
+        return showErr("Wrong email or password. Please try again.");
+      }
+      if (error.message.includes("Email not confirmed")) {
+        return showErr("Please confirm your email first. Check your inbox.");
+      }
+      return showErr(error.message);
+    }
     currentUser = data.user;
     showApp();
   } catch(e) {
@@ -114,8 +149,9 @@ async function forgotPassword() {
   const email = document.getElementById("auth-email")?.value.trim();
   clearMsg();
 
-  if (!email) return showErr("Enter your email address first");
+  if (!email)                       return showErr("Enter your email address first");
   if (!/\S+@\S+\.\S+/.test(email)) return showErr("Enter a valid email address");
+  if (!db)                          return showErr("Connection error. Please refresh.");
 
   setLoading(true, "SENDING RESET EMAIL...");
 
@@ -142,18 +178,18 @@ async function signOut() {
   showAuthScreen("signin");
 }
 
-// ── SHOW / HIDE PASSWORD ──────────────────────
+// ── SHOW/HIDE PASSWORD ────────────────────────
 
 function togglePassword(inputId, btnId) {
   const input = document.getElementById(inputId);
   const btn   = document.getElementById(btnId);
   if (!input) return;
-  const isHidden = input.type === "password";
-  input.type    = isHidden ? "text" : "password";
+  const isHidden  = input.type === "password";
+  input.type      = isHidden ? "text" : "password";
   if (btn) btn.textContent = isHidden ? "🙈" : "👁";
 }
 
-// ── RENDER FORMS ──────────────────────────────
+// ── SCREENS ───────────────────────────────────
 
 function showAuthScreen(mode) {
   const as = document.getElementById("auth-screen");
@@ -184,14 +220,16 @@ function renderAuthForm(mode) {
           <label class="auth-label">FULL NAME</label>
           <input id="auth-name" type="text" class="auth-input"
             placeholder="Your full name"
-            onkeydown="if(event.key==='Enter')signUp()">
+            autocomplete="name"
+            onkeydown="if(event.key==='Enter')document.getElementById('auth-email').focus()">
         </div>
 
         <div class="auth-field">
           <label class="auth-label">EMAIL ADDRESS</label>
           <input id="auth-email" type="email" class="auth-input"
             placeholder="you@email.com"
-            onkeydown="if(event.key==='Enter')signUp()">
+            autocomplete="email"
+            onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()">
         </div>
 
         <div class="auth-field">
@@ -199,7 +237,8 @@ function renderAuthForm(mode) {
           <div class="auth-input-wrap">
             <input id="auth-password" type="password" class="auth-input"
               placeholder="Min 6 characters"
-              onkeydown="if(event.key==='Enter')signUp()">
+              autocomplete="new-password"
+              onkeydown="if(event.key==='Enter')document.getElementById('auth-confirm').focus()">
             <button class="auth-eye-btn" id="eye1" type="button"
               onclick="togglePassword('auth-password','eye1')">👁</button>
           </div>
@@ -210,6 +249,7 @@ function renderAuthForm(mode) {
           <div class="auth-input-wrap">
             <input id="auth-confirm" type="password" class="auth-input"
               placeholder="Repeat your password"
+              autocomplete="new-password"
               onkeydown="if(event.key==='Enter')signUp()">
             <button class="auth-eye-btn" id="eye2" type="button"
               onclick="togglePassword('auth-confirm','eye2')">👁</button>
@@ -219,22 +259,27 @@ function renderAuthForm(mode) {
         <div id="auth-error"   class="auth-error"   style="display:none"></div>
         <div id="auth-success" class="auth-success" style="display:none"></div>
 
-        <button class="auth-btn-primary" id="auth-btn" onclick="signUp()">SIGN UP</button>
+        <button class="auth-btn-primary" id="auth-btn" onclick="signUp()">
+          SIGN UP
+        </button>
 
         <div class="auth-divider">Already have an account?</div>
-        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">SIGN IN</button>
+        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">
+          SIGN IN
+        </button>
       </div>`;
 
   } else if (mode === "forgot") {
     c.innerHTML = logo + `
       <div class="auth-card">
         <h2 class="auth-title">RESET PASSWORD</h2>
-        <p class="auth-subtitle">We'll send a reset link to your email</p>
+        <p class="auth-subtitle">Enter your email to receive a reset link</p>
 
         <div class="auth-field">
           <label class="auth-label">EMAIL ADDRESS</label>
           <input id="auth-email" type="email" class="auth-input"
             placeholder="you@email.com"
+            autocomplete="email"
             onkeydown="if(event.key==='Enter')forgotPassword()">
         </div>
 
@@ -252,7 +297,6 @@ function renderAuthForm(mode) {
       </div>`;
 
   } else {
-    // SIGN IN
     c.innerHTML = logo + `
       <div class="auth-card">
         <h2 class="auth-title">WELCOME BACK</h2>
@@ -262,7 +306,8 @@ function renderAuthForm(mode) {
           <label class="auth-label">EMAIL ADDRESS</label>
           <input id="auth-email" type="email" class="auth-input"
             placeholder="you@email.com"
-            onkeydown="if(event.key==='Enter')signIn()">
+            autocomplete="email"
+            onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()">
         </div>
 
         <div class="auth-field">
@@ -270,6 +315,7 @@ function renderAuthForm(mode) {
           <div class="auth-input-wrap">
             <input id="auth-password" type="password" class="auth-input"
               placeholder="Your password"
+              autocomplete="current-password"
               onkeydown="if(event.key==='Enter')signIn()">
             <button class="auth-eye-btn" id="eye1" type="button"
               onclick="togglePassword('auth-password','eye1')">👁</button>
@@ -279,7 +325,9 @@ function renderAuthForm(mode) {
         <div id="auth-error"   class="auth-error"   style="display:none"></div>
         <div id="auth-success" class="auth-success" style="display:none"></div>
 
-        <button class="auth-btn-primary" id="auth-btn" onclick="signIn()">SIGN IN</button>
+        <button class="auth-btn-primary" id="auth-btn" onclick="signIn()">
+          SIGN IN
+        </button>
 
         <button class="auth-btn-forgot" onclick="renderAuthForm('forgot')">
           Forgot password?
@@ -292,14 +340,11 @@ function renderAuthForm(mode) {
       </div>`;
   }
 
-  // Focus first input
   setTimeout(() => {
     const first = c.querySelector("input");
     if (first) first.focus();
   }, 100);
 }
-
-// ── SHOW APP ──────────────────────────────────
 
 function showApp() {
   const as = document.getElementById("auth-screen");
@@ -307,29 +352,25 @@ function showApp() {
   if (as) as.style.display = "none";
   if (ma) ma.style.display = "block";
 
-  // Set user display name
   if (currentUser) {
     const name = currentUser.user_metadata?.full_name
               || currentUser.email?.split("@")[0]
               || "TRADER";
     const el = document.getElementById("user-name");
-    if (el) el.textContent = name.split(" ")[0].toUpperCase().slice(0, 8);
+    if (el) el.textContent = name.split(" ")[0].toUpperCase().slice(0,8);
   }
 
-  // Init all app functions
   setTimeout(() => {
     if (typeof loadTradingViewChart === "function") loadTradingViewChart("FX:EURUSD");
-    if (typeof setStatus           === "function") setStatus(true);
+    if (typeof setStatus            === "function") setStatus(true);
     if (typeof renderExpirySelector === "function") renderExpirySelector();
-    if (typeof renderStats         === "function") renderStats();
+    if (typeof renderStats          === "function") renderStats();
     if (typeof renderTrackerHistory === "function") renderTrackerHistory();
-    if (typeof notifInit           === "function") notifInit();
-
-    // Attach buttons
+    if (typeof notifInit            === "function") notifInit();
     const bsg = document.getElementById("btn-get-signal");
     const bau = document.getElementById("btn-auto");
-    if (bsg && !bsg.onclick) bsg.addEventListener("click", onGetSignal);
-    if (bau && !bau.onclick) bau.addEventListener("click", onToggleAuto);
+    if (bsg && !bsg._bound) { bsg.addEventListener("click", onGetSignal); bsg._bound=true; }
+    if (bau && !bau._bound) { bau.addEventListener("click", onToggleAuto); bau._bound=true; }
   }, 400);
 }
 
@@ -343,23 +384,23 @@ function showErr(msg) {
 }
 
 function showOk(msg) {
-  const e = document.getElementById("auth-error");
   const s = document.getElementById("auth-success");
+  const e = document.getElementById("auth-error");
   if (s) { s.textContent = msg; s.style.display = "block"; }
   if (e) e.style.display = "none";
 }
 
 function clearMsg() {
-  const e = document.getElementById("auth-error");
-  const s = document.getElementById("auth-success");
-  if (e) e.style.display = "none";
-  if (s) s.style.display = "none";
+  ["auth-error","auth-success"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
 }
 
 function setLoading(on, msg) {
   const btn = document.getElementById("auth-btn");
   if (!btn) return;
-  btn.disabled    = on;
+  btn.disabled = on;
   if (on) btn.dataset.orig = btn.textContent;
   btn.textContent = on ? (msg || "LOADING...") : (btn.dataset.orig || "SUBMIT");
 }
