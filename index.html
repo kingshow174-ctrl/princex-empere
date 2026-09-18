@@ -21,31 +21,9 @@
 
 <!-- ═══ AUTH SCREEN ═══ -->
 <div id="auth-screen" style="display:none">
-  <div class="auth-logo">
-    <span class="auth-logo-icon">👑</span>
-    <div class="auth-logo-title">PRINCEX</div>
-    <div class="auth-logo-sub">EMPERE · TRADING SIGNALS</div>
-  </div>
-  <div class="auth-card">
-    <h2 id="auth-title">WELCOME BACK</h2>
-    <p id="auth-subtitle">Sign in to continue</p>
-    <div id="name-field" class="auth-field" style="display:none">
-      <label>FULL NAME</label>
-      <input type="text" id="auth-name" placeholder="Your name"/>
-    </div>
-    <div class="auth-field">
-      <label>EMAIL ADDRESS</label>
-      <input type="email" id="auth-email" placeholder="you@email.com" onkeydown="if(event.key==='Enter') signIn()"/>
-    </div>
-    <div class="auth-field">
-      <label>PASSWORD</label>
-      <input type="password" id="auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter') signIn()"/>
-    </div>
-    <div id="auth-error"></div>
-    <button class="btn-signin-main" id="btn-signin" onclick="signIn()">SIGN IN</button>
-    <button class="btn-signup-main" id="btn-signup" onclick="signUp()">SIGN UP</button>
-    <p class="auth-forgot" onclick="resetPassword()">Forgot password?</p>
-    <div class="auth-toggle">Don't have an account? <span onclick="toggleAuthMode()">Create one</span></div>
+  <div id="auth-form-container" style="width:100%;max-width:420px">
+    <!-- Rendered by renderAuthForm() in auth.js -->
+    <div style="text-align:center;padding:40px;color:var(--muted);font-family:var(--font-display);font-size:11px">LOADING...</div>
   </div>
 </div>
 

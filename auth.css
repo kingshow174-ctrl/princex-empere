@@ -1,4 +1,7 @@
-/* AUTH SCREEN */
+/* ============================================
+   PRINCEX EMPERE — Auth Screens
+   ============================================ */
+
 #auth-screen {
   display: flex;
   flex-direction: column;
@@ -6,14 +9,13 @@
   justify-content: center;
   min-height: 100vh;
   background: var(--bg);
-  padding: 30px 24px;
+  padding: 24px 20px;
+  overflow-y: auto;
 }
 
-.auth-logo {
-  text-align: center;
-  margin-bottom: 32px;
-}
-.auth-logo-icon { font-size: 56px; display: block; margin-bottom: 8px; }
+/* LOGO */
+.auth-logo { text-align: center; margin-bottom: 28px; }
+.auth-logo-icon  { font-size: 52px; display: block; margin-bottom: 8px; }
 .auth-logo-title {
   font-family: var(--font-display);
   font-size: 28px;
@@ -22,47 +24,60 @@
   letter-spacing: 4px;
 }
 .auth-logo-sub {
-  font-size: 10px;
+  font-family: var(--font-display);
+  font-size: 9px;
   color: var(--muted);
   letter-spacing: 3px;
   margin-top: 4px;
 }
 
+/* CARD */
 .auth-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 28px 24px;
 }
 
-#auth-title {
+.auth-title {
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: 2px;
-  margin-bottom: 4px;
+  margin: 0 0 4px;
 }
-#auth-subtitle {
+.auth-subtitle {
   font-size: 12px;
   color: var(--muted);
-  margin-bottom: 24px;
+  margin: 0 0 22px;
+  font-family: var(--font-body);
 }
 
-.auth-field {
-  margin-bottom: 14px;
-}
-.auth-field label {
+/* FIELDS */
+.auth-field { margin-bottom: 16px; }
+.auth-label {
   display: block;
   font-family: var(--font-display);
   font-size: 9px;
   color: var(--muted);
   letter-spacing: 2px;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
-.auth-field input {
+
+/* INPUT WRAPPER for show/hide */
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.auth-input-wrap .auth-input {
+  padding-right: 44px;
+}
+
+.auth-input {
   width: 100%;
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -72,24 +87,57 @@
   font-size: 14px;
   font-family: var(--font-body);
   outline: none;
-  transition: border 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
 }
-.auth-field input:focus { border-color: var(--gold); }
-.auth-field input::placeholder { color: var(--muted); }
+.auth-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(245,200,66,0.1);
+}
+.auth-input::placeholder { color: var(--muted); }
 
-#auth-error {
-  display: none;
-  font-size: 11px;
-  padding: 10px 14px;
-  border-radius: 8px;
+/* SHOW/HIDE EYE BUTTON */
+.auth-eye-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  color: var(--muted);
+  line-height: 1;
+  transition: opacity 0.2s;
+  z-index: 1;
+}
+.auth-eye-btn:hover { opacity: 0.7; }
+
+/* MESSAGES */
+.auth-error {
   background: rgba(255,59,92,0.1);
   border: 1px solid rgba(255,59,92,0.3);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
   margin-bottom: 14px;
   line-height: 1.5;
+  font-family: var(--font-body);
+}
+.auth-success {
+  background: rgba(0,230,118,0.1);
+  border: 1px solid rgba(0,230,118,0.3);
+  color: var(--green);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+  font-family: var(--font-body);
 }
 
-.btn-signin-main {
+/* BUTTONS */
+.auth-btn-primary {
   width: 100%;
   padding: 16px;
   background: var(--gold);
@@ -104,10 +152,46 @@
   margin-bottom: 10px;
   transition: opacity 0.2s;
 }
-.btn-signin-main:hover { opacity: 0.85; }
-.btn-signin-main:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-btn-primary:hover   { opacity: 0.88; }
+.auth-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btn-signup-main {
+.auth-btn-forgot {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  padding: 4px 0 12px;
+  font-family: var(--font-body);
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+.auth-btn-forgot:hover { color: var(--gold); }
+
+.auth-divider {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 10px 0 12px;
+  font-family: var(--font-body);
+  position: relative;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 28%;
+  height: 1px;
+  background: var(--border);
+}
+.auth-divider::before { left: 0; }
+.auth-divider::after  { right: 0; }
+
+.auth-btn-secondary {
   width: 100%;
   padding: 14px;
   background: transparent;
@@ -118,33 +202,11 @@
   font-size: 12px;
   letter-spacing: 2px;
   cursor: pointer;
-  margin-bottom: 14px;
   transition: all 0.2s;
 }
-.btn-signup-main:hover { border-color: var(--gold); color: var(--gold); }
-.btn-signup-main:disabled { opacity: 0.5; }
-
-.auth-forgot {
-  text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  text-decoration: underline;
-  margin-bottom: 20px;
-}
-.auth-forgot:hover { color: var(--gold); }
-
-.auth-toggle {
-  text-align: center;
-  font-size: 12px;
-  color: var(--muted);
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-.auth-toggle span {
+.auth-btn-secondary:hover {
+  border-color: var(--gold);
   color: var(--gold);
-  cursor: pointer;
-  font-weight: 600;
 }
 
 /* USER BADGE in header */
@@ -157,10 +219,11 @@
   border-radius: 20px;
   padding: 4px 10px 4px 4px;
   cursor: pointer;
+  transition: border-color 0.2s;
 }
+.user-badge:hover { border-color: var(--gold); }
 .user-avatar {
-  width: 26px;
-  height: 26px;
+  width: 26px; height: 26px;
   background: var(--gold);
   border-radius: 50%;
   display: flex;
@@ -177,17 +240,18 @@
   color: var(--text);
   letter-spacing: 1px;
 }
-
 .signout-menu {
   position: absolute;
   right: 20px;
-  top: 60px;
+  top: 62px;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px;
   z-index: 200;
   display: none;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 .signout-menu button {
   width: 100%;
@@ -200,5 +264,6 @@
   cursor: pointer;
   border-radius: 6px;
   letter-spacing: 1px;
+  text-align: left;
 }
 .signout-menu button:hover { background: rgba(255,59,92,0.1); }
