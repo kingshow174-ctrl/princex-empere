@@ -90,7 +90,7 @@ async function signUp() {
       if (error.message.includes("already registered")) {
         return showErr("This email is already registered. Please sign in.");
       }
-      return showErr(error.message);
+      console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
     }
 
     if (data.user && !data.session) {
@@ -132,7 +132,7 @@ async function signIn() {
       if (error.message.includes("Email not confirmed")) {
         return showErr("Please confirm your email first. Check your inbox.");
       }
-      return showErr(error.message);
+      console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
     }
     currentUser = data.user;
     showApp();
@@ -159,7 +159,7 @@ async function forgotPassword() {
     const { error } = await db.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin
     });
-    if (error) return showErr(error.message);
+    if (error) console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
     showOk("✅ Password reset email sent! Check your inbox.");
   } catch(e) {
     showErr("Failed: " + e.message);
