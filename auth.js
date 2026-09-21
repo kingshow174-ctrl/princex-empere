@@ -1,61 +1,56 @@
 // ============================================
-// PRINCEX EMPERE — Auth System
-// Fixed: waits for CONFIG before Supabase init
+// PRINCEX EMPERE — Auth via Server Proxy
+// Bypasses Supabase direct API key issues
 // ============================================
 
 let currentUser = null;
-let db          = null;
+let authToken   = null;
 
 function initAuth() {
-  // Wait until CONFIG is available
-  if (typeof CONFIG === "undefined" || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
-    console.warn("CONFIG not ready, retrying...");
-    setTimeout(initAuth, 200);
-    return;
+  // Restore session from localStorage
+  const saved = localStorage.getItem("px_session");
+  if (saved) {
+    try {
+      const session = JSON.parse(saved);
+      if (session.token && session.user) {
+        authToken   = session.token;
+        currentUser = session.user;
+        // Verify token still valid
+        verifySession().then(valid => {
+          if (valid) showApp();
+          else { clearSession(); showAuthScreen("signin"); }
+        });
+        return;
+      }
+    } catch(e) {}
   }
+  showAuthScreen("signin");
+}
 
-  // Validate keys look real
-  if (!CONFIG.SUPABASE_ANON_KEY.startsWith("eyJ")) {
-    console.warn("Invalid Supabase key, showing app anyway");
-    showApp();
-    return;
-  }
-
-  // Init Supabase
+async function verifySession() {
+  if (!authToken) return false;
   try {
-    db = window.supabase.createClient(
-      CONFIG.SUPABASE_URL,
-      CONFIG.SUPABASE_ANON_KEY
-    );
-  } catch(e) {
-    console.warn("Supabase init failed:", e.message);
-    showApp();
-    return;
-  }
-
-  // Check existing session
-  db.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      currentUser = session.user;
-      showApp();
-    } else {
-      showAuthScreen("signin");
+    const res = await fetch("/api/auth/user", {
+      headers: { "Authorization": "Bearer " + authToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.id) { currentUser = data; return true; }
     }
-  }).catch(e => {
-    console.warn("Session check failed:", e.message);
-    showAuthScreen("signin");
-  });
+    return false;
+  } catch(e) { return false; }
+}
 
-  // Listen for auth state changes
-  db.auth.onAuthStateChange((event, session) => {
-    if (event === "SIGNED_IN" && session?.user) {
-      currentUser = session.user;
-      showApp();
-    } else if (event === "SIGNED_OUT") {
-      currentUser = null;
-      showAuthScreen("signin");
-    }
-  });
+function saveSession(token, user) {
+  authToken   = token;
+  currentUser = user;
+  localStorage.setItem("px_session", JSON.stringify({ token, user }));
+}
+
+function clearSession() {
+  authToken   = null;
+  currentUser = null;
+  localStorage.removeItem("px_session");
 }
 
 // ── SIGN UP ───────────────────────────────────
@@ -75,33 +70,34 @@ async function signUp() {
   if (pass.length < 6)              return showErr("Password must be at least 6 characters");
   if (pass !== conf)                return showErr("Passwords do not match");
 
-  if (!db) return showErr("Connection error. Please refresh and try again.");
-
   setLoading(true, "CREATING ACCOUNT...");
 
   try {
-    const { data, error } = await db.auth.signUp({
-      email,
-      password: pass,
-      options: { data: { full_name: name } }
+    const res  = await fetch("/api/auth/signup", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email, password: pass, name })
     });
+    const data = await res.json();
 
-    if (error) {
-      if (error.message.includes("already registered")) {
+    if (!res.ok || data.error) {
+      const msg = data.error?.message || data.msg || "Sign up failed";
+      if (msg.includes("already registered") || msg.includes("already exists")) {
         return showErr("This email is already registered. Please sign in.");
       }
-      console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
+      return showErr(msg);
     }
 
-    if (data.user && !data.session) {
-      showOk("✅ Account created! Check your email to confirm, then sign in.");
-      setTimeout(() => renderAuthForm("signin"), 3000);
-    } else if (data.user) {
-      currentUser = data.user;
+    // Auto sign in if session returned
+    if (data.access_token) {
+      saveSession(data.access_token, data.user);
       showApp();
+    } else {
+      showOk("✅ Account created! You can now sign in.");
+      setTimeout(() => renderAuthForm("signin"), 2000);
     }
   } catch(e) {
-    showErr("Sign up failed: " + e.message);
+    showErr("Network error: " + e.message);
   } finally {
     setLoading(false);
   }
@@ -117,27 +113,36 @@ async function signIn() {
 
   if (!email) return showErr("Please enter your email");
   if (!pass)  return showErr("Please enter your password");
-  if (!db)    return showErr("Connection error. Please refresh.");
 
   setLoading(true, "SIGNING IN...");
 
   try {
-    const { data, error } = await db.auth.signInWithPassword({
-      email, password: pass
+    const res  = await fetch("/api/auth/signin", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email, password: pass })
     });
-    if (error) {
-      if (error.message.includes("Invalid login")) {
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      const msg = data.error?.message || data.error_description || "Sign in failed";
+      if (msg.includes("Invalid login") || msg.includes("invalid_grant")) {
         return showErr("Wrong email or password. Please try again.");
       }
-      if (error.message.includes("Email not confirmed")) {
+      if (msg.includes("Email not confirmed")) {
         return showErr("Please confirm your email first. Check your inbox.");
       }
-      console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
+      return showErr(msg);
     }
-    currentUser = data.user;
-    showApp();
+
+    if (data.access_token && data.user) {
+      saveSession(data.access_token, data.user);
+      showApp();
+    } else {
+      showErr("Sign in failed. Please try again.");
+    }
   } catch(e) {
-    showErr("Sign in failed: " + e.message);
+    showErr("Network error: " + e.message);
   } finally {
     setLoading(false);
   }
@@ -151,18 +156,19 @@ async function forgotPassword() {
 
   if (!email)                       return showErr("Enter your email address first");
   if (!/\S+@\S+\.\S+/.test(email)) return showErr("Enter a valid email address");
-  if (!db)                          return showErr("Connection error. Please refresh.");
 
   setLoading(true, "SENDING RESET EMAIL...");
 
   try {
-    const { error } = await db.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
+    const res = await fetch("/api/auth/forgot", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email })
     });
-    if (error) console.error("Auth error:", error); return showErr(error.message + " (code: " + (error.status||"?") + ")");
-    showOk("✅ Password reset email sent! Check your inbox.");
+
+    showOk("✅ If this email exists, a reset link has been sent. Check your inbox.");
   } catch(e) {
-    showErr("Failed: " + e.message);
+    showErr("Network error: " + e.message);
   } finally {
     setLoading(false);
   }
@@ -173,20 +179,29 @@ async function forgotPassword() {
 async function signOut() {
   const m = document.getElementById("signout-menu");
   if (m) m.style.display = "none";
-  if (db) await db.auth.signOut();
-  currentUser = null;
+
+  try {
+    if (authToken) {
+      await fetch("/api/auth/signout", {
+        method:  "POST",
+        headers: { "Authorization": "Bearer " + authToken }
+      });
+    }
+  } catch(e) {}
+
+  clearSession();
   showAuthScreen("signin");
 }
 
-// ── SHOW/HIDE PASSWORD ────────────────────────
+// ── SHOW / HIDE PASSWORD ──────────────────────
 
 function togglePassword(inputId, btnId) {
   const input = document.getElementById(inputId);
   const btn   = document.getElementById(btnId);
   if (!input) return;
-  const isHidden  = input.type === "password";
-  input.type      = isHidden ? "text" : "password";
-  if (btn) btn.textContent = isHidden ? "🙈" : "👁";
+  const hide  = input.type === "password";
+  input.type  = hide ? "text" : "password";
+  if (btn) btn.textContent = hide ? "🙈" : "👁";
 }
 
 // ── SCREENS ───────────────────────────────────
@@ -215,58 +230,37 @@ function renderAuthForm(mode) {
       <div class="auth-card">
         <h2 class="auth-title">CREATE ACCOUNT</h2>
         <p class="auth-subtitle">Join Princex Empere today</p>
-
         <div class="auth-field">
           <label class="auth-label">FULL NAME</label>
-          <input id="auth-name" type="text" class="auth-input"
-            placeholder="Your full name"
-            autocomplete="name"
+          <input id="auth-name" type="text" class="auth-input" placeholder="Your full name"
             onkeydown="if(event.key==='Enter')document.getElementById('auth-email').focus()">
         </div>
-
         <div class="auth-field">
           <label class="auth-label">EMAIL ADDRESS</label>
-          <input id="auth-email" type="email" class="auth-input"
-            placeholder="you@email.com"
-            autocomplete="email"
+          <input id="auth-email" type="email" class="auth-input" placeholder="you@email.com"
             onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()">
         </div>
-
         <div class="auth-field">
           <label class="auth-label">PASSWORD</label>
           <div class="auth-input-wrap">
-            <input id="auth-password" type="password" class="auth-input"
-              placeholder="Min 6 characters"
-              autocomplete="new-password"
+            <input id="auth-password" type="password" class="auth-input" placeholder="Min 6 characters"
               onkeydown="if(event.key==='Enter')document.getElementById('auth-confirm').focus()">
-            <button class="auth-eye-btn" id="eye1" type="button"
-              onclick="togglePassword('auth-password','eye1')">👁</button>
+            <button class="auth-eye-btn" id="eye1" type="button" onclick="togglePassword('auth-password','eye1')">👁</button>
           </div>
         </div>
-
         <div class="auth-field">
           <label class="auth-label">CONFIRM PASSWORD</label>
           <div class="auth-input-wrap">
-            <input id="auth-confirm" type="password" class="auth-input"
-              placeholder="Repeat your password"
-              autocomplete="new-password"
+            <input id="auth-confirm" type="password" class="auth-input" placeholder="Repeat your password"
               onkeydown="if(event.key==='Enter')signUp()">
-            <button class="auth-eye-btn" id="eye2" type="button"
-              onclick="togglePassword('auth-confirm','eye2')">👁</button>
+            <button class="auth-eye-btn" id="eye2" type="button" onclick="togglePassword('auth-confirm','eye2')">👁</button>
           </div>
         </div>
-
-        <div id="auth-error"   class="auth-error"   style="display:none"></div>
+        <div id="auth-error" class="auth-error" style="display:none"></div>
         <div id="auth-success" class="auth-success" style="display:none"></div>
-
-        <button class="auth-btn-primary" id="auth-btn" onclick="signUp()">
-          SIGN UP
-        </button>
-
+        <button class="auth-btn-primary" id="auth-btn" onclick="signUp()">SIGN UP</button>
         <div class="auth-divider">Already have an account?</div>
-        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">
-          SIGN IN
-        </button>
+        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">SIGN IN</button>
       </div>`;
 
   } else if (mode === "forgot") {
@@ -274,26 +268,16 @@ function renderAuthForm(mode) {
       <div class="auth-card">
         <h2 class="auth-title">RESET PASSWORD</h2>
         <p class="auth-subtitle">Enter your email to receive a reset link</p>
-
         <div class="auth-field">
           <label class="auth-label">EMAIL ADDRESS</label>
-          <input id="auth-email" type="email" class="auth-input"
-            placeholder="you@email.com"
-            autocomplete="email"
+          <input id="auth-email" type="email" class="auth-input" placeholder="you@email.com"
             onkeydown="if(event.key==='Enter')forgotPassword()">
         </div>
-
-        <div id="auth-error"   class="auth-error"   style="display:none"></div>
+        <div id="auth-error" class="auth-error" style="display:none"></div>
         <div id="auth-success" class="auth-success" style="display:none"></div>
-
-        <button class="auth-btn-primary" id="auth-btn" onclick="forgotPassword()">
-          SEND RESET LINK
-        </button>
-
+        <button class="auth-btn-primary" id="auth-btn" onclick="forgotPassword()">SEND RESET LINK</button>
         <div class="auth-divider"></div>
-        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">
-          ← BACK TO SIGN IN
-        </button>
+        <button class="auth-btn-secondary" onclick="renderAuthForm('signin')">← BACK TO SIGN IN</button>
       </div>`;
 
   } else {
@@ -301,50 +285,32 @@ function renderAuthForm(mode) {
       <div class="auth-card">
         <h2 class="auth-title">WELCOME BACK</h2>
         <p class="auth-subtitle">Sign in to continue trading</p>
-
         <div class="auth-field">
           <label class="auth-label">EMAIL ADDRESS</label>
-          <input id="auth-email" type="email" class="auth-input"
-            placeholder="you@email.com"
-            autocomplete="email"
+          <input id="auth-email" type="email" class="auth-input" placeholder="you@email.com"
             onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()">
         </div>
-
         <div class="auth-field">
           <label class="auth-label">PASSWORD</label>
           <div class="auth-input-wrap">
-            <input id="auth-password" type="password" class="auth-input"
-              placeholder="Your password"
-              autocomplete="current-password"
+            <input id="auth-password" type="password" class="auth-input" placeholder="Your password"
               onkeydown="if(event.key==='Enter')signIn()">
-            <button class="auth-eye-btn" id="eye1" type="button"
-              onclick="togglePassword('auth-password','eye1')">👁</button>
+            <button class="auth-eye-btn" id="eye1" type="button" onclick="togglePassword('auth-password','eye1')">👁</button>
           </div>
         </div>
-
-        <div id="auth-error"   class="auth-error"   style="display:none"></div>
+        <div id="auth-error" class="auth-error" style="display:none"></div>
         <div id="auth-success" class="auth-success" style="display:none"></div>
-
-        <button class="auth-btn-primary" id="auth-btn" onclick="signIn()">
-          SIGN IN
-        </button>
-
-        <button class="auth-btn-forgot" onclick="renderAuthForm('forgot')">
-          Forgot password?
-        </button>
-
+        <button class="auth-btn-primary" id="auth-btn" onclick="signIn()">SIGN IN</button>
+        <button class="auth-btn-forgot" onclick="renderAuthForm('forgot')">Forgot password?</button>
         <div class="auth-divider">Don't have an account?</div>
-        <button class="auth-btn-secondary" onclick="renderAuthForm('signup')">
-          CREATE ACCOUNT
-        </button>
+        <button class="auth-btn-secondary" onclick="renderAuthForm('signup')">CREATE ACCOUNT</button>
       </div>`;
   }
 
-  setTimeout(() => {
-    const first = c.querySelector("input");
-    if (first) first.focus();
-  }, 100);
+  setTimeout(() => { const f = c.querySelector("input"); if (f) f.focus(); }, 100);
 }
+
+// ── SHOW APP ──────────────────────────────────
 
 function showApp() {
   const as = document.getElementById("auth-screen");
@@ -369,8 +335,8 @@ function showApp() {
     if (typeof notifInit            === "function") notifInit();
     const bsg = document.getElementById("btn-get-signal");
     const bau = document.getElementById("btn-auto");
-    if (bsg && !bsg._bound) { bsg.addEventListener("click", onGetSignal); bsg._bound=true; }
-    if (bau && !bau._bound) { bau.addEventListener("click", onToggleAuto); bau._bound=true; }
+    if (bsg && !bsg._b) { bsg.addEventListener("click", onGetSignal);  bsg._b=true; }
+    if (bau && !bau._b) { bau.addEventListener("click", onToggleAuto); bau._b=true; }
   }, 400);
 }
 
@@ -379,7 +345,7 @@ function showApp() {
 function showErr(msg) {
   const e = document.getElementById("auth-error");
   const s = document.getElementById("auth-success");
-  if (e) { e.textContent = msg; e.style.display = "block"; }
+  if (e) { e.textContent = "❌ " + msg; e.style.display = "block"; }
   if (s) s.style.display = "none";
 }
 
