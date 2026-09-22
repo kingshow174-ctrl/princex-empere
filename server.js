@@ -156,3 +156,10 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("PRINCEX EMPERE on port " + PORT));
+
+// Deriv OAuth callback handler
+app.get("/deriv-callback", (req, res) => {
+  // Redirect to app with token params
+  const params = new URLSearchParams(req.query);
+  res.redirect("/?" + params.toString());
+});

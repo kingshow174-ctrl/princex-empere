@@ -1366,3 +1366,19 @@ function dpRenderSignalAI(s) {
   if (dd) { dd.textContent = s.direction; dd.className = "dp-dash-val " + (s.rise?"green":s.direction==="FALL"?"red":""); }
   if (ds) { ds.textContent = s.confidence+"%"; ds.style.color = tc; }
 }
+
+// Init trading panel when PRO tab opens
+const _dpInitUI_orig = dpInitUI;
+dpInitUI = function() {
+  _dpInitUI_orig();
+  if (typeof renderTradingPanel === "function") renderTradingPanel();
+};
+
+// Sync symbol to trading when pair changes
+document.addEventListener("click", e => {
+  if (e.target.classList.contains("dp-pair-btn")) {
+    setTimeout(() => {
+      if (typeof tradingSetSymbol === "function") tradingSetSymbol(DP.sym);
+    }, 100);
+  }
+});
