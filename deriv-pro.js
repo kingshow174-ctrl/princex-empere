@@ -1382,3 +1382,12 @@ document.addEventListener("click", e => {
     }, 100);
   }
 });
+
+// Init trading when PRO tab opens
+const __dpInit = typeof dpInitUI === "function" ? dpInitUI : () => {};
+dpInitUI = function() {
+  __dpInit();
+  setTimeout(() => {
+    if (typeof derivTradingInit === "function") derivTradingInit();
+  }, 300);
+};
