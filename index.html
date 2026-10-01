@@ -334,6 +334,18 @@
       <div id="dc-overlay-panel"></div>
     </div>
 
+    <!-- DERIV SUB TABS -->
+    <div class="deriv-sub-tabs">
+      <button class="deriv-sub-tab active" id="dsub-chart" onclick="switchDerivSubTab('chart')">
+        📊 CHART
+      </button>
+      <button class="deriv-sub-tab" id="dsub-strategy" onclick="switchDerivSubTab('strategy')">
+        🎨 STRATEGY
+      </button>
+    </div>
+
+    <!-- CHART VIEW -->
+    <div id="deriv-sub-chart">
     <div class="deriv-chart-outer">
       <div class="deriv-chart-toolbar">
         <span id="deriv-chart-pair" class="dchart-pair">V50</span>
@@ -350,9 +362,21 @@
       </div>
     </div>
 
+    </div><!-- end deriv-sub-chart -->
+
     <div class="deriv-btn-row">
       <button class="deriv-btn-signal" id="deriv-btn-signal">⚡ GET SIGNAL</button>
       <button class="deriv-btn-auto btn-auto" id="deriv-btn-auto">🔄 AUTO SCAN</button>
+    </div>
+
+    <!-- STRATEGY PAGE -->
+    <div id="deriv-sub-strategy" style="display:none">
+      <div id="strategy-page"></div>
+    </div>
+
+    <!-- SETTINGS OVERLAY -->
+    <div id="strategy-settings-overlay" onclick="if(event.target===this)closeStrategySettings()">
+      <div id="strategy-settings-panel"></div>
     </div>
 
     <div id="deriv-signal-card">
@@ -429,6 +453,7 @@
   <script src="chart.js"></script>
   <script src="candle-scanner.js"></script>
   <script src="deriv-chart.js"></script>
+  <script src="deriv-strategy.js"></script>
   <script src="deriv.js"></script>
   <script src="gemini-deriv.js"></script>
   <script src="deriv-trading.js"></script>

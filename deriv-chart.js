@@ -743,3 +743,38 @@ dcDraw = function() {
   ctx.fillStyle = "#1e293b"; ctx.font = "8px monospace";
   ctx.fillText(DC.sym + " x"+DC.zoom.toFixed(1)+" "+all.length+"c", 4, H-6);
 };
+
+// ── INJECT STRATEGY OVERLAYS INTO DRAW ────────
+const _origDcDraw2 = dcDraw;
+dcDraw = function() {
+  _origDcDraw2();
+
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!canvas || !ctx) return;
+  if (!DC.candles.length) return;
+  if (typeof STRATEGIES === "undefined" || !STRATEGIES.active.length) return;
+  if (typeof drawStrategyOverlays === "undefined") return;
+
+  const W    = canvas.offsetWidth;
+  const H    = canvas.offsetHeight;
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const all  = DC.liveCandle ? [...DC.candles, DC.liveCandle] : [...DC.candles];
+  const vis  = Math.max(5, Math.round(40 / DC.zoom));
+  const endI = Math.min(all.length, Math.max(vis, all.length - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl   = all.slice(startI, endI);
+  if (!sl.length) return;
+
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng = hi - lo || hi * 0.01 || 1;
+  hi += rng * 0.15; lo -= rng * 0.15;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+  const dec   = hi < 10 ? 5 : hi < 100 ? 3 : hi < 10000 ? 2 : 0;
+  const gap   = CW;
+
+  drawStrategyOverlays(ctx, all, W, H, RPAD, TPAD, BPAD, scY, gap, CW, startI, sl, dec);
+};

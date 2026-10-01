@@ -686,3 +686,13 @@ derivInitUI = function() {
   _origDerivInitUI2();
   if (typeof dcRenderOverlayPanel === "function") dcRenderOverlayPanel();
 };
+
+function switchDerivSubTab(tab) {
+  document.querySelectorAll(".deriv-sub-tab").forEach(b => b.classList.remove("active"));
+  document.getElementById("dsub-"+tab)?.classList.add("active");
+  document.getElementById("deriv-sub-chart").style.display    = tab==="chart"    ? "block" : "none";
+  document.getElementById("deriv-sub-strategy").style.display = tab==="strategy" ? "block" : "none";
+  if (tab === "strategy") {
+    if (typeof renderStrategyPage === "function") renderStrategyPage();
+  }
+}
