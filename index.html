@@ -130,6 +130,44 @@
   </div>
 
 
+      <!-- FLOATING RISE/FALL BUTTONS -->
+    <div id="deriv-float-btns" style="display:none">
+      <div class="dfb-settings">
+        <div class="dfb-stake-row">
+          <button class="dfb-stake-btn" onclick="dfbChangeStake(-1)">−</button>
+          <span id="dfb-stake">10 USD</span>
+          <button class="dfb-stake-btn" onclick="dfbChangeStake(1)">+</button>
+        </div>
+        <div class="dfb-dur-row">
+          <button class="dfb-dur active" onclick="dfbSetDur(1,this)">1m</button>
+          <button class="dfb-dur" onclick="dfbSetDur(2,this)">2m</button>
+          <button class="dfb-dur" onclick="dfbSetDur(3,this)">3m</button>
+          <button class="dfb-dur" onclick="dfbSetDur(5,this)">5m</button>
+          <button class="dfb-dur" onclick="dfbSetDur(10,this)">10m</button>
+          <button class="dfb-dur" onclick="dfbSetDur(15,this)">15m</button>
+        </div>
+      </div>
+      <div class="dfb-trade-row">
+        <button class="dfb-rise" id="dfb-rise-btn" onclick="dfbBuy('RISE')">
+          <span class="dfb-arrow">⬆</span>
+          <span class="dfb-label">RISE</span>
+          <span class="dfb-payout" id="dfb-rise-payout">--</span>
+        </button>
+        <div class="dfb-middle">
+          <div class="dfb-pair" id="dfb-pair-label">V50</div>
+          <div class="dfb-price" id="dfb-live-price-float">--</div>
+          <button class="dfb-collapse" onclick="dfbToggle()">▼</button>
+        </div>
+        <button class="dfb-fall" id="dfb-fall-btn" onclick="dfbBuy('FALL')">
+          <span class="dfb-arrow">⬇</span>
+          <span class="dfb-label">FALL</span>
+          <span class="dfb-payout" id="dfb-fall-payout">--</span>
+        </button>
+      </div>
+      <div id="dfb-result" style="display:none"></div>
+    </div>
+    <button id="deriv-float-toggle" style="display:none" onclick="dfbToggle()">📈 TRADE</button>
+
   <!-- ── SIGNALS TAB ── -->
   <div id="tab-signals" class="tab-content">
 
