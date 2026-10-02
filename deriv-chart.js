@@ -778,3 +778,119 @@ dcDraw = function() {
 
   drawStrategyOverlays(ctx, all, W, H, RPAD, TPAD, BPAD, scY, gap, CW, startI, sl, dec);
 };
+
+// ============================================
+// ENGULFING CANDLE ARROWS — Auto Draw
+// Green ▲ for Bull Engulfing
+// Red ▼ for Bear Engulfing
+// ============================================
+
+function dcDrawEngulfingArrows(ctx, sl, gap, scY, BPAD, H) {
+  if (sl.length < 2) return;
+
+  sl.forEach((c, i) => {
+    if (i < 1) return;
+    const p = sl[i - 1];
+    const x = i * gap + gap / 2;
+
+    const bodyC  = Math.abs(c.close - c.open);
+    const bodyP  = Math.abs(p.close - p.open);
+    const bullC  = c.close > c.open;
+    const bearC  = c.close < c.open;
+    const bullP  = p.close > p.open;
+    const bearP  = p.close < p.open;
+
+    // BULLISH ENGULFING — green candle fully covers red
+    if (bullC && bearP && c.open <= p.close && c.close >= p.open && bodyC > bodyP) {
+      // Arrow below candle
+      const arrowY = scY(c.low) + 8;
+
+      // Arrow triangle
+      ctx.beginPath();
+      ctx.moveTo(x,          arrowY);
+      ctx.lineTo(x - 7,      arrowY + 14);
+      ctx.lineTo(x + 7,      arrowY + 14);
+      ctx.closePath();
+      ctx.fillStyle = "#00e676";
+      ctx.fill();
+
+      // Glow
+      ctx.shadowColor = "#00e676";
+      ctx.shadowBlur  = 8;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // Label
+      ctx.fillStyle   = "#00e676";
+      ctx.font        = "bold 8px monospace";
+      ctx.textAlign   = "center";
+      ctx.fillText("BUY", x, arrowY + 25);
+      ctx.textAlign   = "left";
+    }
+
+    // BEARISH ENGULFING — red candle fully covers green
+    if (bearC && bullP && c.open >= p.close && c.close <= p.open && bodyC > bodyP) {
+      // Arrow above candle
+      const arrowY = scY(c.high) - 8;
+
+      // Arrow triangle
+      ctx.beginPath();
+      ctx.moveTo(x,          arrowY);
+      ctx.lineTo(x - 7,      arrowY - 14);
+      ctx.lineTo(x + 7,      arrowY - 14);
+      ctx.closePath();
+      ctx.fillStyle = "#ff3b5c";
+      ctx.fill();
+
+      // Glow
+      ctx.shadowColor = "#ff3b5c";
+      ctx.shadowBlur  = 8;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // Label
+      ctx.fillStyle   = "#ff3b5c";
+      ctx.font        = "bold 8px monospace";
+      ctx.textAlign   = "center";
+      ctx.fillText("SELL", x, arrowY - 19);
+      ctx.textAlign   = "left";
+    }
+  });
+
+  ctx.shadowBlur = 0;
+}
+
+// Inject engulfing arrows into dcDraw
+const _dcDrawWithEngulf = dcDraw;
+dcDraw = function() {
+  _dcDrawWithEngulf();
+
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!canvas || !ctx) return;
+  if (!DC.candles.length) return;
+
+  const W    = canvas.offsetWidth;
+  const H    = canvas.offsetHeight;
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const all  = DC.liveCandle
+    ? [...DC.candles, { ...DC.liveCandle, _live: true }]
+    : [...DC.candles];
+
+  const vis    = Math.max(5, Math.round(40 / DC.zoom));
+  const endI   = Math.min(all.length, Math.max(vis, all.length - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl     = all.slice(startI, endI);
+  if (sl.length < 2) return;
+
+  // Price range
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng  = hi - lo || hi * 0.01 || 1;
+  hi += rng * 0.15; lo -= rng * 0.15;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+
+  dcDrawEngulfingArrows(ctx, sl, CW, scY, BPAD, H);
+};
