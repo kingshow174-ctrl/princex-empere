@@ -877,3 +877,10 @@ body { padding-bottom: 60px; }
   box-shadow: 0 4px 20px rgba(0,230,118,0.4);
   display: none;
 }
+.dfb-dur {
+  padding:4px 8px;background:var(--bg3);
+  border:1px solid var(--border);color:var(--muted);
+  border-radius:6px;font-family:var(--font-display);
+  font-size:9px;cursor:pointer;letter-spacing:1px;
+}
+.dfb-dur.active { background:var(--gold);color:#000;border-color:var(--gold);font-weight:700; }

@@ -131,7 +131,50 @@
 
 
       <!-- FLOATING RISE/FALL BUTTONS -->
-    <div id="deriv-float-btns" style="display:none">
+    <!-- FLOATING RISE/FALL OVERLAY -->
+    <div id="deriv-float-btns" style="display:none;position:fixed;bottom:70px;left:0;right:0;z-index:100;background:rgba(10,14,26,0.97);border-top:1px solid var(--border);backdrop-filter:blur(10px)">
+      <!-- STAKE + DURATION -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="dfbChangeStake(-1)" style="width:28px;height:28px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:16px;cursor:pointer">−</button>
+          <span id="dfb-stake" style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--gold);min-width:65px;text-align:center">10 USD</span>
+          <button onclick="dfbChangeStake(1)"  style="width:28px;height:28px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:16px;cursor:pointer">+</button>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="dfb-dur active" onclick="dfbSetDur(1,this)">1m</button>
+          <button class="dfb-dur"        onclick="dfbSetDur(2,this)">2m</button>
+          <button class="dfb-dur"        onclick="dfbSetDur(3,this)">3m</button>
+          <button class="dfb-dur"        onclick="dfbSetDur(5,this)">5m</button>
+          <button class="dfb-dur"        onclick="dfbSetDur(10,this)">10m</button>
+          <button class="dfb-dur"        onclick="dfbSetDur(15,this)">15m</button>
+        </div>
+      </div>
+      <!-- RISE / FALL BUTTONS -->
+      <div style="display:flex;height:85px">
+        <button id="dfb-rise-btn" onclick="dfbBuy('RISE')" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#00c851,#00e676);color:#000;border:none;cursor:pointer;gap:2px">
+          <span style="font-size:26px;line-height:1">⬆</span>
+          <span class="dfb-label" style="font-family:var(--font-display);font-size:15px;font-weight:900;letter-spacing:2px">RISE</span>
+          <span id="dfb-rise-payout" style="font-size:10px;opacity:0.8;font-family:var(--font-display)">--</span>
+        </button>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 12px;background:var(--bg2);border-left:1px solid rgba(255,255,255,0.05);border-right:1px solid rgba(255,255,255,0.05);min-width:80px;gap:4px">
+          <div id="dfb-pair-label" style="font-family:var(--font-display);font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1px">V50</div>
+          <div id="dfb-live-price-float" style="font-family:var(--font-display);font-size:13px;font-weight:700;color:#fff">--</div>
+          <button onclick="dfbToggle()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">▼ HIDE</button>
+        </div>
+        <button id="dfb-fall-btn" onclick="dfbBuy('FALL')" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#ff1744,#ff3b5c);color:#fff;border:none;cursor:pointer;gap:2px">
+          <span style="font-size:26px;line-height:1">⬇</span>
+          <span class="dfb-label" style="font-family:var(--font-display);font-size:15px;font-weight:900;letter-spacing:2px">FALL</span>
+          <span id="dfb-fall-payout" style="font-size:10px;opacity:0.8;font-family:var(--font-display)">--</span>
+        </button>
+      </div>
+      <!-- RESULT -->
+      <div id="dfb-result" style="display:none;padding:8px 16px;font-family:var(--font-display);font-size:12px;text-align:center;letter-spacing:1px"></div>
+    </div>
+
+    <!-- SHOW TRADE BUTTON (when collapsed) -->
+    <button id="deriv-float-toggle" onclick="dfbToggle()" style="display:none;position:fixed;bottom:80px;right:16px;z-index:101;background:var(--green);color:#000;border:none;border-radius:24px;padding:10px 20px;font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;box-shadow:0 4px 20px rgba(0,230,118,0.4)">
+      📈 TRADE
+    </button>
       <div class="dfb-settings">
         <div class="dfb-stake-row">
           <button class="dfb-stake-btn" onclick="dfbChangeStake(-1)">−</button>
@@ -460,7 +503,7 @@
     document.querySelectorAll(".nav-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("tab-"+tab).classList.add("active");
     document.getElementById("nav-"+tab).classList.add("active");
-    if (tab === "deriv") derivInitUI();
+    if (tab === "deriv") { derivInitUI(); setTimeout(dfbUpdateAccountBar, 600); }
     if (tab === "deriv-pro") dpInitUI();
     if (tab === "signals") notifInitSignalsTab();
   }
