@@ -700,3 +700,106 @@ renderTradingPanel = function() {
   _origRenderTradingPanel2();
   dfbUpdateAccountBar();
 };
+
+// ── STAKE INPUT FUNCTIONS ──────────────────────
+
+function dfbSetStakeInput(val) {
+  const n = parseFloat(val);
+  if (!isNaN(n) && n > 0) {
+    dfbStake    = n;
+    stakeAmount = n;
+    dfbRefreshPayouts();
+  }
+}
+
+// Override dfbChangeStake to also update input
+const _origDfbChangeStake = dfbChangeStake;
+dfbChangeStake = function(delta) {
+  _origDfbChangeStake(delta);
+  const inp = document.getElementById("dfb-stake-input");
+  if (inp) inp.value = dfbStake;
+};
+
+// Override dfbBuy to show result inline
+const _origDfbBuy = dfbBuy;
+dfbBuy = async function(direction) {
+  if (!tradingToken) {
+    const lb = document.getElementById("deriv-login-bar");
+    if (lb) {
+      lb.style.background = "rgba(255,59,92,0.1)";
+      lb.style.borderColor = "var(--red)";
+      setTimeout(() => {
+        lb.style.background = "";
+        lb.style.borderColor = "";
+      }, 1500);
+    }
+    return;
+  }
+  await _origDfbBuy(direction);
+};
+
+// Show result inline in the middle panel
+const _origShowContractResult = typeof showContractResult==="function" ? showContractResult : null;
+if (_origShowContractResult) {
+  showContractResult = function(contract) {
+    _origShowContractResult(contract);
+    const el  = document.getElementById("dfb-result-inline");
+    if (!el) return;
+    const win = contract.result === "WIN";
+    el.textContent   = win
+      ? "🎉 +" + Math.abs(parseFloat(contract.profit)).toFixed(2)
+      : "💔 -" + Math.abs(parseFloat(contract.profit)).toFixed(2);
+    el.style.color   = win ? "#00e676" : "#ff3b5c";
+    setTimeout(() => { el.textContent = ""; }, 5000);
+  };
+}
+
+// Update account bar when balance changes
+const _origTHM3 = tradingHandleMsg;
+tradingHandleMsg = function(data) {
+  _origTHM3(data);
+  if (data.msg_type === "authorize" && data.authorize) {
+    const ab  = document.getElementById("deriv-account-bar");
+    const lb  = document.getElementById("deriv-login-bar");
+    const id  = document.getElementById("dab-account-id");
+    const bal = document.getElementById("dab-balance");
+    if (ab)  ab.style.display  = "flex";
+    if (lb)  lb.style.display  = "none";
+    if (id)  id.textContent    = data.authorize.loginid;
+    if (bal) bal.textContent   = parseFloat(data.authorize.balance).toFixed(2) + " " + data.authorize.currency;
+    dfbCurrency = data.authorize.currency || "USD";
+    // Show float panel pair label
+    const pl = document.getElementById("dfb-pair-label");
+    if (pl) pl.textContent = derivLabel || "V50";
+    dfbRefreshPayouts();
+  }
+  if (data.msg_type === "balance" && data.balance) {
+    const bal = document.getElementById("dab-balance");
+    if (bal) bal.textContent = parseFloat(data.balance.balance).toFixed(2) + " " + (tradingCurrency||"USD");
+  }
+};
+
+// Update live price in bottom panel
+const _origDHM3 = typeof derivHandleMessage==="function" ? derivHandleMessage : null;
+if (_origDHM3) {
+  derivHandleMessage = function(data) {
+    _origDHM3(data);
+    if (data.tick) {
+      const p   = parseFloat(data.tick.quote);
+      const dec = p<10?5:p<1000?2:1;
+      const el  = document.getElementById("dfb-live-price-float");
+      if (el) el.textContent = p.toFixed(dec);
+    }
+  };
+}
+
+// Update pair label when switching pairs
+document.addEventListener("click", e => {
+  if (e.target.classList.contains("deriv-pair-btn")) {
+    setTimeout(() => {
+      const pl = document.getElementById("dfb-pair-label");
+      if (pl) pl.textContent = derivLabel || "V50";
+      dfbRefreshPayouts();
+    }, 200);
+  }
+});
