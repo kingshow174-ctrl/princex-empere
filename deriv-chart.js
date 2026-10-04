@@ -1,7 +1,6 @@
 // ============================================
-// PRINCEX EMPERE — Deriv Chart v8
-// Built-in: Engulfing Arrows + Strategy Overlays
-// All drawn in ONE pass — no re-draw conflicts
+// PRINCEX EMPERE — Chart v7 REBUILT
+// Clean, fast, auto-scaling for all pairs
 // ============================================
 
 const DC = {
@@ -12,20 +11,22 @@ const DC = {
   signal: null, price: null, sym: "V50",
 };
 
+// ── INIT ─────────────────────────────────────
 function dcInit() {
   const cv = document.getElementById("dc-canvas");
   if (!cv) return;
   DC.canvas = cv;
 
+  // Touch
   cv.addEventListener("touchstart", e => {
     e.preventDefault();
     if (e.touches.length === 1) {
       DC.drag = true;
       DC.dragX = e.touches[0].clientX;
       DC.dragOff = DC.offset;
-    } else if (e.touches.length === 2) {
+    } else {
       DC.drag = false;
-      DC.pinch = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      DC.pinch = dcDist(e.touches);
       DC.pinchZ = DC.zoom;
     }
   }, { passive: false });
@@ -34,18 +35,22 @@ function dcInit() {
     e.preventDefault();
     if (e.touches.length === 1 && DC.drag) {
       const dx = DC.dragX - e.touches[0].clientX;
-      DC.offset = Math.max(0, Math.min(dcMaxOff(), DC.dragOff + Math.round(dx / dcSW())));
+      const step = Math.round(dx / dcSlotW());
+      DC.offset = Math.max(0, Math.min(dcMaxOff(), DC.dragOff + step));
     } else if (e.touches.length === 2) {
-      const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      const d = dcDist(e.touches);
       DC.zoom = Math.max(0.2, Math.min(10, DC.pinchZ * d / (DC.pinch || d)));
     }
   }, { passive: false });
 
-  cv.addEventListener("touchend",   () => DC.drag = false);
-  cv.addEventListener("mousedown",  e  => { DC.drag=true; DC.dragX=e.clientX; DC.dragOff=DC.offset; });
-  cv.addEventListener("mousemove",  e  => {
+  cv.addEventListener("touchend", () => DC.drag = false);
+
+  // Mouse
+  cv.addEventListener("mousedown", e => { DC.drag = true; DC.dragX = e.clientX; DC.dragOff = DC.offset; });
+  cv.addEventListener("mousemove", e => {
     if (!DC.drag) return;
-    DC.offset = Math.max(0, Math.min(dcMaxOff(), DC.dragOff + Math.round((DC.dragX-e.clientX)/dcSW())));
+    const step = Math.round((DC.dragX - e.clientX) / dcSlotW());
+    DC.offset = Math.max(0, Math.min(dcMaxOff(), DC.dragOff + step));
   });
   cv.addEventListener("mouseup",    () => DC.drag = false);
   cv.addEventListener("mouseleave", () => DC.drag = false);
@@ -54,518 +59,838 @@ function dcInit() {
     DC.zoom = Math.max(0.2, Math.min(10, DC.zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
   }, { passive: false });
 
-  dcResize();
-  window.addEventListener("resize", dcResize);
-  if (!DC.raf) dcLoop();
+  dcFitCanvas();
+  window.addEventListener("resize", dcFitCanvas);
+  if (!DC.raf) dcRun();
 }
 
-function dcResize() {
-  const c = DC.canvas; if (!c) return;
+function dcFitCanvas() {
+  const cv = DC.canvas; if (!cv) return;
   const dpr = window.devicePixelRatio || 1;
-  c.width = c.offsetWidth * dpr;
-  c.height = c.offsetHeight * dpr;
-  DC.ctx = c.getContext("2d");
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  cv.width  = W * dpr; cv.height = H * dpr;
+  DC.ctx = cv.getContext("2d");
   DC.ctx.scale(dpr, dpr);
 }
 
-function dcSW()     { return (DC.canvas?.offsetWidth - 65 || 300) / Math.max(5, Math.round(40/DC.zoom)); }
-function dcMaxOff() { return Math.max(0, dcAll().length - Math.max(5, Math.round(40/DC.zoom))); }
-function dcAll()    { return DC.live ? [...DC.candles, {...DC.live, _live:true}] : [...DC.candles]; }
-
-function dcLoop() { dcDraw(); DC.raf = requestAnimationFrame(dcLoop); }
-
-// ── INDICATOR HELPERS ─────────────────────────
-
-function _buildEMA(closes, period) {
-  if (closes.length < period) return new Array(closes.length).fill(null);
-  const k = 2/(period+1), out = new Array(closes.length).fill(null);
-  let e = closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
-  out[period-1] = e;
-  for (let i=period; i<closes.length; i++) { e=closes[i]*k+e*(1-k); out[i]=e; }
-  return out;
+function dcDist(t) {
+  return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 }
 
-function _calcATR(candles, period, idx) {
-  let sum=0, cnt=0;
-  for (let i=Math.max(1,idx-period+1); i<=idx; i++) {
-    const c=candles[i], p=candles[i-1];
-    if (!c||!p) continue;
-    sum += Math.max(c.high-c.low, Math.abs(c.high-p.close), Math.abs(c.low-p.close));
-    cnt++;
-  }
-  return cnt>0 ? sum/cnt : 0.001;
+function dcVisible()  { return Math.max(5, Math.round(40 / DC.zoom)); }
+function dcSlotW()    { const W = DC.canvas?.offsetWidth || 360; return (W - 65) / dcVisible(); }
+function dcMaxOff()   { return Math.max(0, dcAllCandles().length - dcVisible()); }
+function dcAllCandles() {
+  return DC.live ? [...DC.candles, { ...DC.live, _live: true }] : [...DC.candles];
 }
 
-function _getStrat(id, key) {
-  if (typeof STRATEGIES === "undefined") return null;
-  const def = (typeof STRATEGY_LIST !== "undefined")
-    ? STRATEGY_LIST.find(s=>s.id===id)?.settings.find(s=>s.key===key)?.default
-    : null;
-  return STRATEGIES.settings?.[id]?.[key] ?? def;
+// ── DRAW LOOP ─────────────────────────────────
+function dcRun() {
+  dcFrame();
+  DC.raf = requestAnimationFrame(dcRun);
 }
 
-function _stratActive(id) {
-  if (typeof STRATEGIES === "undefined") return false;
-  return STRATEGIES.active?.includes(id) || false;
-}
-
-// ── MAIN DRAW ─────────────────────────────────
-
-function dcDraw() {
-  const ctx = DC.ctx, canvas = DC.canvas;
-  if (!ctx || !canvas) return;
-  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+function dcFrame() {
+  const cv = DC.canvas, ctx = DC.ctx;
+  if (!cv || !ctx) return;
+  const W = cv.offsetWidth, H = cv.offsetHeight;
   if (!W || !H) return;
 
-  ctx.clearRect(0,0,W,H);
+  // BG
   ctx.fillStyle = "#0b0f1a";
-  ctx.fillRect(0,0,W,H);
+  ctx.fillRect(0, 0, W, H);
 
-  const RPAD=65, TPAD=12, BPAD=26;
-  const all  = dcAll();
-  const vis  = Math.max(5, Math.round(40/DC.zoom));
-  const endI = Math.min(all.length, Math.max(vis, all.length-DC.offset));
-  const startI = Math.max(0, endI-vis);
-  const sl   = all.slice(startI, endI);
-  const CW   = (W-RPAD)/Math.max(sl.length,1);
-  const cW   = Math.max(1.5, CW*0.65);
+  const RPAD = 65, TPAD = 10, BPAD = 26;
+  const CW   = dcSlotW();
+  const cW   = Math.max(1.5, CW * 0.65);
+  const all  = dcAllCandles();
 
-  if (!sl.length) {
-    ctx.fillStyle="#475569"; ctx.font="12px monospace"; ctx.textAlign="center";
-    ctx.fillText("Waiting for data...", (W-RPAD)/2, H/2);
-    ctx.textAlign="left"; return;
+  if (all.length === 0) {
+    ctx.fillStyle = "#334155"; ctx.font = "13px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("Waiting for data...", (W - RPAD) / 2, H / 2);
+    ctx.textAlign = "left"; return;
   }
 
-  // Price range from visible candles only
-  let hi=-Infinity, lo=Infinity;
-  sl.forEach(c => { hi=Math.max(hi,c.high); lo=Math.min(lo,c.low); });
-  const rng = hi-lo || hi*0.01 || 1, pad = rng*0.15;
-  hi+=pad; lo-=pad;
-  const drawH = H-TPAD-BPAD;
-  const scY   = v => TPAD + drawH*(1-(v-lo)/(hi-lo));
-  const dec   = hi<10?5:hi<100?3:hi<10000?2:0;
-  const closes = all.map(c=>c.close);
+  // Visible slice
+  const vis   = dcVisible();
+  const total = all.length;
+  const endI  = Math.min(total, Math.max(vis, total - DC.offset));
+  const startI= Math.max(0, endI - vis);
+  const sl    = all.slice(startI, endI);
+  if (!sl.length) return;
 
-  // ── GRID ──
-  for (let i=0; i<=5; i++) {
-    const v=lo+(hi-lo)*i/5, y=scY(v);
-    ctx.strokeStyle="rgba(255,255,255,0.04)"; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
-    ctx.fillStyle="#475569"; ctx.font="9px monospace"; ctx.textAlign="left";
-    ctx.fillText(v.toFixed(dec), W-RPAD+3, y+3);
+  // ── AUTO SCALE: use only visible candles ──
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng  = hi - lo || hi * 0.01 || 1;
+  const pad  = rng * 0.1;
+  hi += pad; lo -= pad;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+
+  // ── GRID ─────────────────────────────────────
+  const gridN = 5;
+  const dec   = hi < 10 ? 5 : hi < 100 ? 3 : hi < 10000 ? 2 : 0;
+  ctx.strokeStyle = "rgba(255,255,255,0.04)"; ctx.lineWidth = 1;
+  for (let i = 0; i <= gridN; i++) {
+    const v = lo + (hi - lo) * i / gridN;
+    const y = scY(v);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD, y); ctx.stroke();
+    ctx.fillStyle = "#475569"; ctx.font = "9px monospace"; ctx.textAlign = "left";
+    ctx.fillText(v.toFixed(dec), W - RPAD + 3, y + 3);
   }
-  ctx.strokeStyle="#1e2d45"; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(W-RPAD,TPAD); ctx.lineTo(W-RPAD,H-BPAD); ctx.stroke();
 
-  // ── EMA LINES (always shown) ──
-  const drawEMALine = (period, color, label) => {
-    const s = _buildEMA(closes, period);
-    ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=1.5;
-    let mv=true, lv=null;
-    sl.forEach((_,vi) => {
-      const v=s[startI+vi]; if (!v||v<lo||v>hi){mv=true;return;}
-      const x=vi*CW+CW/2, y=scY(v);
-      mv?ctx.moveTo(x,y):ctx.lineTo(x,y); mv=false; lv={x,y,v};
+  // ── EMA ───────────────────────────────────────
+  const closes = all.map(c => c.close);
+  function ema(p) {
+    if (closes.length < p) return [];
+    const k = 2 / (p + 1), out = new Array(closes.length).fill(null);
+    let e = closes.slice(0, p).reduce((a, b) => a + b, 0) / p;
+    out[p - 1] = e;
+    for (let i = p; i < closes.length; i++) { e = closes[i] * k + e * (1 - k); out[i] = e; }
+    return out;
+  }
+  function drawEma(p, color, lbl) {
+    const s = ema(p); if (!s.length) return;
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    let mv = true, last = null;
+    sl.forEach((_, vi) => {
+      const v = s[startI + vi];
+      if (!v || v < lo || v > hi) { mv = true; return; }
+      const x = vi * CW + CW / 2, y = scY(v);
+      if (mv) { ctx.moveTo(x, y); mv = false; } else ctx.lineTo(x, y);
+      last = { x, y, v };
     });
     ctx.stroke();
-    if (lv) { ctx.fillStyle=color; ctx.font="8px monospace"; ctx.fillText(label+" "+lv.v.toFixed(dec),W-RPAD+3,lv.y-4); }
-  };
-  drawEMALine(20,"#3b82f6","E20");
-  drawEMALine(50,"#f59e0b","E50");
-
-  // ── VWAP (always shown) ──
-  let pv=0, vc=0;
-  ctx.beginPath(); ctx.strokeStyle="rgba(167,139,250,0.6)"; ctx.lineWidth=1; ctx.setLineDash([3,3]);
-  let vmv=true;
-  all.slice(0,endI).forEach((c,ai) => {
-    pv+=(c.high+c.low+c.close)/3; vc++;
-    if (ai<startI) return;
-    const vi=ai-startI, v=pv/vc;
-    if (v<lo||v>hi){vmv=true;return;}
-    const x=vi*CW+CW/2, y=scY(v);
-    vmv?ctx.moveTo(x,y):ctx.lineTo(x,y); vmv=false;
-  });
-  ctx.stroke(); ctx.setLineDash([]);
-
-  // ── STRATEGY OVERLAYS (applied to full history) ──
-
-  // BOLLINGER BANDS
-  if (_stratActive("bollinger")) {
-    const period=_getStrat("bollinger","period")||20;
-    const std2=_getStrat("bollinger","std")||2;
-    const col=_getStrat("bollinger","color")||"#3b82f6";
-    ctx.strokeStyle=col+"90"; ctx.lineWidth=1; ctx.setLineDash([2,3]);
-    ["u","m","l"].forEach(band => {
-      ctx.beginPath(); let bmv=true;
-      sl.forEach((_,vi) => {
-        const ai=startI+vi;
-        const sl2=closes.slice(Math.max(0,ai-period+1),ai+1);
-        if (sl2.length<3){bmv=true;return;}
-        const avg=sl2.reduce((a,b)=>a+b,0)/sl2.length;
-        const s=Math.sqrt(sl2.reduce((s,v)=>s+Math.pow(v-avg,2),0)/sl2.length);
-        const v=band==="u"?avg+std2*s:band==="l"?avg-std2*s:avg;
-        if (v<lo||v>hi){bmv=true;return;}
-        const x=vi*CW+CW/2, y=scY(v);
-        bmv?ctx.moveTo(x,y):ctx.lineTo(x,y); bmv=false;
-      });
-      ctx.stroke();
-    });
-    ctx.setLineDash([]);
-  }
-
-  // SUPERTREND DOTS
-  if (_stratActive("supertrend")) {
-    const p=_getStrat("supertrend","period")||10;
-    const m=_getStrat("supertrend","multiplier")||3;
-    let tr="up", stV=sl[0]?.close||0;
-    sl.forEach((c,vi) => {
-      const ai=startI+vi;
-      const atr=_calcATR(all,p,ai);
-      const hl2=(c.high+c.low)/2;
-      const bU=hl2+m*atr, bL=hl2-m*atr;
-      if (c.close>stV) tr="up"; else if (c.close<stV) tr="down";
-      stV=tr==="up"?Math.max(bL,stV):Math.min(bU,stV);
-      const y=scY(stV);
-      if (y<TPAD||y>H-BPAD) return;
-      ctx.fillStyle=tr==="up"?"rgba(0,230,118,0.8)":"rgba(255,59,92,0.8)";
-      ctx.beginPath(); ctx.arc(vi*CW+CW/2, y, 2.5, 0, Math.PI*2); ctx.fill();
-    });
-  }
-
-  // FIBONACCI
-  if (_stratActive("fibonacci")) {
-    const lb=_getStrat("fibonacci","lookback")||30;
-    const col=_getStrat("fibonacci","color")||"#fb923c";
-    const fslc=all.slice(Math.max(0,startI+sl.length-lb), startI+sl.length);
-    const fHi=Math.max(...fslc.map(c=>c.high));
-    const fLo=Math.min(...fslc.map(c=>c.low));
-    [0,0.236,0.382,0.5,0.618,0.786,1].forEach(r => {
-      const v=fHi-(fHi-fLo)*r, y=scY(v);
-      if (y<TPAD||y>H-BPAD) return;
-      ctx.strokeStyle=col+"60"; ctx.lineWidth=1; ctx.setLineDash([2,4]);
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
-      ctx.fillStyle=col; ctx.font="8px monospace"; ctx.setLineDash([]);
-      ctx.fillText("Fib "+(r*100).toFixed(1)+"%", 4, y-2);
-    });
-    ctx.setLineDash([]);
-  }
-
-  // SUPPORT & RESISTANCE
-  if (_stratActive("support_resistance")) {
-    const lb=_getStrat("support_resistance","lookback")||20;
-    const sc=_getStrat("support_resistance","s_color")||"#00e676";
-    const rc=_getStrat("support_resistance","r_color")||"#ff3b5c";
-    const highs=[], lows=[];
-    for (let i=2;i<sl.length-2;i++) {
-      const w=sl.slice(i-2,i+3);
-      if (sl[i].high===Math.max(...w.map(c=>c.high))) highs.push(sl[i].high);
-      if (sl[i].low===Math.min(...w.map(c=>c.low)))   lows.push(sl[i].low);
-    }
-    [...new Set(highs)].slice(-3).forEach(v => {
-      const y=scY(v); if (y<TPAD||y>H-BPAD) return;
-      ctx.strokeStyle=rc; ctx.lineWidth=1; ctx.setLineDash([4,4]);
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
-      ctx.fillStyle=rc; ctx.font="8px monospace"; ctx.setLineDash([]);
-      ctx.fillText("R "+v.toFixed(dec), 4, y-2);
-    });
-    [...new Set(lows)].slice(-3).forEach(v => {
-      const y=scY(v); if (y<TPAD||y>H-BPAD) return;
-      ctx.strokeStyle=sc; ctx.lineWidth=1; ctx.setLineDash([4,4]);
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
-      ctx.fillStyle=sc; ctx.font="8px monospace"; ctx.setLineDash([]);
-      ctx.fillText("S "+v.toFixed(dec), 4, y-2);
-    });
-    ctx.setLineDash([]);
-  }
-
-  // PIVOT POINTS
-  if (_stratActive("pivot_points") && all.length>1) {
-    const prev=all[Math.max(0,startI-1)];
-    const P=(prev.high+prev.low+prev.close)/3;
-    const R1=2*P-prev.low, S1=2*P-prev.high;
-    const R2=P+(prev.high-prev.low), S2=P-(prev.high-prev.low);
-    [{v:P,c:"#fff",l:"P"},{v:R1,c:"#ff6b6b",l:"R1"},{v:S1,c:"#00e676",l:"S1"},
-     {v:R2,c:"#ff3b5c",l:"R2"},{v:S2,c:"#00b388",l:"S2"}].forEach(({v,c,l}) => {
-      const y=scY(v); if (y<TPAD||y>H-BPAD) return;
-      ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([3,3]);
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
-      ctx.fillStyle=c; ctx.font="8px monospace"; ctx.setLineDash([]);
-      ctx.fillText(l, W-RPAD+3, y-1);
-    });
-    ctx.setLineDash([]);
-  }
-
-  // SMC ZONES — Order Blocks + FVG
-  if (_stratActive("smc_zones")) {
-    const bCol=_getStrat("smc_zones","bull_col")||"#00e676";
-    const rCol=_getStrat("smc_zones","bear_col")||"#ff3b5c";
-    const showOB=_getStrat("smc_zones","show_ob")!==false;
-    const showFVG=_getStrat("smc_zones","show_fvg")!==false;
-
-    for (let i=1;i<sl.length-1;i++) {
-      const c=sl[i], nx=sl[i+1], p=sl[i-1];
-      if (!c||!nx||!p) continue;
-      const x1=(i-0.5)*CW, x2=(i+1.5)*CW;
-
-      if (showOB) {
-        const body=Math.abs(c.close-c.open), nb=Math.abs(nx.close-nx.open);
-        if (nb>body*1.5) {
-          const bull=c.close<c.open&&nx.close>nx.open;
-          const y1=scY(c.high), y2=scY(c.low);
-          ctx.fillStyle=bull?bCol+"18":rCol+"18";
-          ctx.strokeStyle=bull?bCol+"50":rCol+"50";
-          ctx.lineWidth=1;
-          ctx.fillRect(x1,y1,x2-x1,y2-y1);
-          ctx.strokeRect(x1,y1,x2-x1,y2-y1);
-          ctx.fillStyle=bull?bCol:rCol;
-          ctx.font="7px monospace";
-          ctx.fillText("OB", x1+2, y1+10);
-        }
-      }
-
-      if (showFVG) {
-        if (nx.low>p.high) {
-          const y1=scY(p.high), y2=scY(nx.low);
-          ctx.fillStyle=bCol+"15";
-          ctx.fillRect(x1, y1, x2-x1, y2-y1);
-          ctx.fillStyle=bCol+"80"; ctx.font="7px monospace";
-          ctx.fillText("FVG", x1+2, y1+10);
-        } else if (nx.high<p.low) {
-          const y1=scY(nx.high), y2=scY(p.low);
-          ctx.fillStyle=rCol+"15";
-          ctx.fillRect(x1, y1, x2-x1, y2-y1);
-          ctx.fillStyle=rCol+"80"; ctx.font="7px monospace";
-          ctx.fillText("FVG", x1+2, y1+10);
-        }
-      }
+    if (last) {
+      ctx.fillStyle = color; ctx.font = "8px monospace"; ctx.textAlign = "left";
+      ctx.fillText(lbl + " " + last.v.toFixed(dec), W - RPAD + 3, last.y - 5);
     }
   }
+  drawEma(20, "#3b82f6", "E20");
+  drawEma(50, "#f59e0b", "E50");
 
-  // EMA CROSS ARROWS
-  if (_stratActive("ema_cross")) {
-    const fast=_getStrat("ema_cross","fast")||20;
-    const slow=_getStrat("ema_cross","slow")||50;
-    const eFast=_buildEMA(closes,fast);
-    const eSlow=_buildEMA(closes,slow);
-    sl.forEach((_,vi) => {
-      const ai=startI+vi;
-      if (ai<1||!eFast[ai]||!eSlow[ai]||!eFast[ai-1]||!eSlow[ai-1]) return;
-      const x=vi*CW+CW/2;
-      if (eFast[ai-1]<=eSlow[ai-1]&&eFast[ai]>eSlow[ai]) {
-        // Golden cross
-        const y=scY(sl[vi].low)+12;
-        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-8,y+16); ctx.lineTo(x+8,y+16);
-        ctx.closePath(); ctx.fillStyle="#00e676";
-        ctx.shadowColor="#00e676"; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
-        ctx.fillStyle="#00e676"; ctx.font="bold 8px monospace"; ctx.textAlign="center";
-        ctx.fillText("CROSS▲", x, y+28); ctx.textAlign="left";
-      } else if (eFast[ai-1]>=eSlow[ai-1]&&eFast[ai]<eSlow[ai]) {
-        // Death cross
-        const y=scY(sl[vi].high)-12;
-        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-8,y-16); ctx.lineTo(x+8,y-16);
-        ctx.closePath(); ctx.fillStyle="#ff3b5c";
-        ctx.shadowColor="#ff3b5c"; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
-        ctx.fillStyle="#ff3b5c"; ctx.font="bold 8px monospace"; ctx.textAlign="center";
-        ctx.fillText("CROSS▼", x, y-22); ctx.textAlign="left";
-      }
-    });
-    ctx.shadowBlur=0;
+  // ── VWAP ──────────────────────────────────────
+  let pv = 0, vc = 0;
+  all.slice(0, endI).forEach(c => { pv += (c.high + c.low + c.close) / 3; vc++; });
+  const vwap = vc ? pv / vc : 0;
+  if (vwap >= lo && vwap <= hi) {
+    const vy = scY(vwap);
+    ctx.strokeStyle = "rgba(245,200,66,0.4)"; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(0, vy); ctx.lineTo(W - RPAD, vy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#f5c842"; ctx.font = "8px monospace"; ctx.textAlign = "left";
+    ctx.fillText("VWAP", W - RPAD + 3, vy - 2);
   }
 
-  // SL/TP LEVELS
+  // ── SL/TP ─────────────────────────────────────
   if (DC.signal?.fired) {
-    const lvl=(price,color,lbl)=>{
-      const pf=parseFloat(price); if (!pf||pf<lo||pf>hi) return;
-      const y=scY(pf), bw=58;
-      ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.setLineDash([5,3]);
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD-bw-4,y); ctx.stroke();
+    const lvl = (price, color, lbl) => {
+      const p = parseFloat(price);
+      if (!p || p < lo || p > hi) return;
+      const y = scY(p);
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD, y); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle=color;
-      ctx.beginPath(); ctx.roundRect?ctx.roundRect(W-RPAD-bw-4,y-10,bw,20,4):ctx.rect(W-RPAD-bw-4,y-10,bw,20);
-      ctx.fill();
-      ctx.fillStyle="#000"; ctx.font="bold 9px monospace"; ctx.textAlign="center";
-      ctx.fillText(lbl, W-RPAD-bw-4+bw/2, y+4); ctx.textAlign="left";
-      ctx.fillStyle=color; ctx.fillRect(W-RPAD,y-9,RPAD-1,18);
-      ctx.fillStyle="#000"; ctx.font="bold 9px monospace"; ctx.textAlign="center";
-      ctx.fillText(pf.toFixed(dec), W-RPAD+(RPAD-1)/2, y+4); ctx.textAlign="left";
+      ctx.fillStyle = color; ctx.font = "9px monospace";
+      ctx.fillText(lbl, W - RPAD + 3, y + 3);
     };
-    lvl(DC.signal.sl,    "#ff3b5c","🛡 SL");
-    lvl(DC.signal.tp2,   "#00ff88","🎯 TP2");
-    lvl(DC.signal.tp1,   "#00e676","✅ TP1");
-    lvl(DC.signal.entry, "#ffffff","📍 ENTRY");
+    lvl(DC.signal.entry, "#fff",     "EN");
+    lvl(DC.signal.sl,    "#ff3b5c",  "SL");
+    lvl(DC.signal.tp1,   "#00e676",  "T1");
+    lvl(DC.signal.tp2,   "#00ff88",  "T2");
   }
 
-  // ── CANDLES ──
-  sl.forEach((c,i) => {
-    const live=c._live, bull=c.close>=c.open;
-    const color=live?"#a78bfa":(bull?"#00e676":"#ff3b5c");
-    const x=i*CW+CW/2;
-    const hY=scY(c.high), lY=scY(c.low);
-    const oY=scY(c.open), clY=scY(c.close);
-    const bTop=Math.min(oY,clY), bH=Math.max(1.5,Math.abs(oY-clY));
+  // ── CANDLES ───────────────────────────────────
+  sl.forEach((c, i) => {
+    const live  = c._live === true;
+    const bull  = c.close >= c.open;
+    const color = live ? "#a78bfa" : (bull ? "#00e676" : "#ff3b5c");
+    const x     = i * CW + CW / 2;
+    const hY    = scY(c.high), lY = scY(c.low);
+    const oY    = scY(c.open), cY = scY(c.close);
+    const bTop  = Math.min(oY, cY);
+    const bH    = Math.max(1.5, Math.abs(oY - cY));
 
-    ctx.strokeStyle=live?"#c4b5fd":color;
-    ctx.lineWidth=Math.max(1,cW*0.1);
-    ctx.beginPath(); ctx.moveTo(x,hY); ctx.lineTo(x,lY); ctx.stroke();
+    // Wick
+    ctx.strokeStyle = live ? "#c4b5fd" : color;
+    ctx.lineWidth   = Math.max(1, cW * 0.1);
+    ctx.beginPath(); ctx.moveTo(x, hY); ctx.lineTo(x, lY); ctx.stroke();
 
+    // Body
     if (live) {
-      ctx.fillStyle="rgba(167,139,250,0.4)";
-      ctx.fillRect(x-cW/2,bTop,cW,bH);
-      ctx.strokeStyle="#a78bfa"; ctx.lineWidth=1;
-      ctx.strokeRect(x-cW/2,bTop,cW,bH);
+      ctx.fillStyle = "rgba(167,139,250,0.4)";
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
+      ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1;
+      ctx.strokeRect(x - cW/2, bTop, cW, bH);
     } else {
-      ctx.fillStyle=color;
-      ctx.fillRect(x-cW/2,bTop,cW,bH);
+      ctx.fillStyle = color;
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
     }
   });
 
-  // ── ENGULFING ARROWS (drawn ON TOP of candles — full history) ──
-  sl.forEach((c,i) => {
-    if (i<1) return;
-    const p=sl[i-1];
-    const x=i*CW+CW/2;
-    const bodyC=Math.abs(c.close-c.open);
-    const bodyP=Math.abs(p.close-p.open);
-    const bullC=c.close>c.open, bearC=c.close<c.open;
-    const bullP=p.close>p.open, bearP=p.close<p.open;
-
-    // BULLISH ENGULFING
-    if (bullC&&bearP&&c.open<=p.close&&c.close>=p.open&&bodyC>bodyP) {
-      const arrowY=scY(c.low)+10;
-      ctx.beginPath();
-      ctx.moveTo(x,      arrowY);
-      ctx.lineTo(x-8,    arrowY+15);
-      ctx.lineTo(x+8,    arrowY+15);
-      ctx.closePath();
-      ctx.fillStyle="#00e676";
-      ctx.shadowColor="#00e676"; ctx.shadowBlur=12;
-      ctx.fill(); ctx.shadowBlur=0;
-      ctx.fillStyle="#00e676"; ctx.font="bold 8px monospace"; ctx.textAlign="center";
-      ctx.fillText("BUY", x, arrowY+28); ctx.textAlign="left";
-    }
-
-    // BEARISH ENGULFING
-    if (bearC&&bullP&&c.open>=p.close&&c.close<=p.open&&bodyC>bodyP) {
-      const arrowY=scY(c.high)-10;
-      ctx.beginPath();
-      ctx.moveTo(x,      arrowY);
-      ctx.lineTo(x-8,    arrowY-15);
-      ctx.lineTo(x+8,    arrowY-15);
-      ctx.closePath();
-      ctx.fillStyle="#ff3b5c";
-      ctx.shadowColor="#ff3b5c"; ctx.shadowBlur=12;
-      ctx.fill(); ctx.shadowBlur=0;
-      ctx.fillStyle="#ff3b5c"; ctx.font="bold 8px monospace"; ctx.textAlign="center";
-      ctx.fillText("SELL", x, arrowY-22); ctx.textAlign="left";
-    }
-    ctx.shadowBlur=0;
-  });
-
-  // ── PINBAR markers ──
-  if (_stratActive("pin_bar")) {
-    const minR=_getStrat("pin_bar","min_ratio")||2;
-    const col=_getStrat("pin_bar","color")||"#f5c842";
-    sl.forEach((c,i) => {
-      const body=Math.abs(c.close-c.open)||0.0001;
-      const upper=c.high-Math.max(c.open,c.close);
-      const lower=Math.min(c.open,c.close)-c.low;
-      const x=i*CW+CW/2;
-      ctx.fillStyle=col; ctx.textAlign="center";
-      if (lower>body*minR) { ctx.font="14px monospace"; ctx.fillText("🔨",x,scY(c.low)+22); }
-      else if (upper>body*minR) { ctx.font="14px monospace"; ctx.fillText("⭐",x,scY(c.high)-18); }
-      ctx.textAlign="left";
+  // ── GHOST CANDLES (predictions) ───────────────
+  if (DC.signal?.fired && DC.signal.predictions && DC.offset === 0) {
+    const atr  = parseFloat(DC.signal.details?.atr) || rng * 0.3;
+    const base = sl[sl.length - 1]?.close || (hi + lo) / 2;
+    DC.signal.predictions.forEach((p, i) => {
+      const x = (sl.length + i) * CW + CW / 2;
+      if (x > W - RPAD - 5) return;
+      const rise  = p.dir === "RISE";
+      const gc    = rise ? base + atr * 0.5 : base - atr * 0.5;
+      const go    = base;
+      const gh    = rise ? gc + atr*0.3 : go + atr*0.15;
+      const gl    = rise ? go - atr*0.15 : gc - atr*0.3;
+      if (gh > hi || gl < lo) return;
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, scY(gh)); ctx.lineTo(x, scY(gl)); ctx.stroke();
+      const bt = Math.min(scY(go), scY(gc)), bh2 = Math.max(2, Math.abs(scY(go) - scY(gc)));
+      ctx.fillStyle = rise ? "rgba(124,58,237,0.5)" : "rgba(147,51,234,0.5)";
+      ctx.fillRect(x - cW/2, bt, cW, bh2);
+      ctx.strokeRect(x - cW/2, bt, cW, bh2);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#a855f7"; ctx.font = "8px monospace"; ctx.textAlign = "center";
+      ctx.fillText("C" + p.index, x, H - BPAD + 12);
+      ctx.textAlign = "left";
     });
   }
 
-  // ── GHOST CANDLES ──
-  if (DC.signal?.fired&&DC.signal.predictions&&DC.offset===0) {
-    const atr=parseFloat(DC.signal.details?.atr)||rng*0.3;
-    const base=sl[sl.length-1]?.close||(hi+lo)/2;
-    DC.signal.predictions.forEach((p,i)=>{
-      const x=(sl.length+i)*CW+CW/2; if (x>W-RPAD-5) return;
-      const rise=p.dir==="RISE";
-      const gc=rise?base+atr*0.5:base-atr*0.5,go=base;
-      const gh=rise?gc+atr*0.3:go+atr*0.15, gl=rise?go-atr*0.15:gc-atr*0.3;
-      if (gh>hi||gl<lo) return;
-      ctx.globalAlpha=0.5; ctx.strokeStyle="#a855f7"; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.moveTo(x,scY(gh)); ctx.lineTo(x,scY(gl)); ctx.stroke();
-      const bt=Math.min(scY(go),scY(gc)), bh2=Math.max(2,Math.abs(scY(go)-scY(gc)));
-      ctx.fillStyle=rise?"rgba(124,58,237,0.5)":"rgba(147,51,234,0.5)";
-      ctx.fillRect(x-cW/2,bt,cW,bh2); ctx.strokeRect(x-cW/2,bt,cW,bh2);
-      ctx.globalAlpha=1; ctx.fillStyle="#a855f7"; ctx.font="8px monospace"; ctx.textAlign="center";
-      ctx.fillText("C"+p.index,x,H-BPAD+12); ctx.fillText(p.riseP+"%",x,H-BPAD+22);
-      ctx.textAlign="left";
-    });
+  // ── LIVE PRICE LABEL ──────────────────────────
+  const lp = DC.live?.close || DC.price || all[all.length-1]?.close;
+  if (lp && lp >= lo && lp <= hi) {
+    const py = scY(lp);
+    // dashed line
+    ctx.strokeStyle = "rgba(245,200,66,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W - RPAD, py); ctx.stroke();
+    ctx.setLineDash([]);
+    // price box
+    ctx.fillStyle = "#f5c842";
+    ctx.fillRect(W - RPAD, py - 9, RPAD - 1, 18);
+    ctx.fillStyle = "#000"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
+    ctx.fillText(lp.toFixed(dec), W - RPAD + (RPAD - 1) / 2, py + 4);
+    ctx.textAlign = "left";
   }
 
-  // ── LIVE PRICE BOX ──
-  const lp=DC.live?.close||DC.price||all[all.length-1]?.close;
-  if (lp&&lp>=lo&&lp<=hi) {
-    const py=scY(lp);
-    ctx.strokeStyle="rgba(245,200,66,0.4)"; ctx.lineWidth=1; ctx.setLineDash([2,3]);
-    ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W-RPAD,py); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle="#f5c842"; ctx.fillRect(W-RPAD,py-9,RPAD-1,18);
-    ctx.fillStyle="#000"; ctx.font="bold 9px monospace"; ctx.textAlign="center";
-    ctx.fillText(lp.toFixed(dec), W-RPAD+(RPAD-1)/2, py+4); ctx.textAlign="left";
-  }
-
-  // ── TIME AXIS ──
-  const ts=Math.max(1,Math.floor(sl.length/5));
-  ctx.fillStyle="#334155"; ctx.font="8px monospace";
-  sl.forEach((c,i)=>{
-    if (i%ts!==0) return;
-    const dt=new Date((c.epoch||0)*1000);
-    ctx.fillText(dt.getUTCHours().toString().padStart(2,"0")+":"+dt.getUTCMinutes().toString().padStart(2,"0"),i*CW+2,H-6);
+  // ── TIME AXIS ─────────────────────────────────
+  const ts = Math.max(1, Math.floor(sl.length / 5));
+  ctx.fillStyle = "#334155"; ctx.font = "8px monospace";
+  sl.forEach((c, i) => {
+    if (i % ts !== 0) return;
+    const dt = new Date((c.epoch || 0) * 1000);
+    const t  = dt.getUTCHours().toString().padStart(2,"0") + ":" + dt.getUTCMinutes().toString().padStart(2,"0");
+    ctx.fillText(t, i * CW + 2, H - 6);
   });
 
-  // ── OVERLAYS ──
+  // ── OVERLAYS ──────────────────────────────────
+  // LIVE badge
   if (DC.live) {
-    ctx.fillStyle="rgba(0,230,118,0.12)"; ctx.fillRect(4,4,44,16);
-    ctx.fillStyle="#00e676"; ctx.font="bold 9px monospace"; ctx.fillText("● LIVE",7,15);
+    ctx.fillStyle = "rgba(0,230,118,0.12)"; ctx.fillRect(4, 4, 44, 16);
+    ctx.fillStyle = "#00e676"; ctx.font = "bold 9px monospace";
+    ctx.fillText("● LIVE", 7, 15);
   }
-  if (DC.offset>0) {
-    ctx.fillStyle="rgba(10,14,26,0.8)"; ctx.fillRect(0,TPAD,W-RPAD,18);
-    ctx.fillStyle="#f5c842"; ctx.font="9px monospace"; ctx.textAlign="center";
-    ctx.fillText("◀ "+DC.offset+" back — swipe right for latest",(W-RPAD)/2,TPAD+13);
-    ctx.textAlign="left";
+
+  // Right axis separator
+  ctx.strokeStyle = "#1e2d45"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W - RPAD, TPAD); ctx.lineTo(W - RPAD, H - BPAD); ctx.stroke();
+
+  // Scroll hint
+  if (DC.offset > 0) {
+    ctx.fillStyle = "rgba(10,14,26,0.7)"; ctx.fillRect(0, TPAD, W - RPAD, 18);
+    ctx.fillStyle = "#f5c842"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+    ctx.fillText("◀ " + DC.offset + " candles back — swipe right for latest ▶", (W-RPAD)/2, TPAD + 13);
+    ctx.textAlign = "left";
   }
-  ctx.fillStyle="#1e293b"; ctx.font="8px monospace";
-  ctx.fillText(DC.sym+" x"+DC.zoom.toFixed(1)+" "+all.length+"c",4,H-6);
+
+  // Info
+  ctx.fillStyle = "#1e293b"; ctx.font = "8px monospace";
+  ctx.fillText(DC.sym + "  " + all.length + " candles  x" + DC.zoom.toFixed(1), 4, H - 8);
 }
 
 // ── PUBLIC API ────────────────────────────────
-
 function loadDerivChart(sym, gran) {
-  const c=document.getElementById("deriv-chart-container");
+  const c = document.getElementById("deriv-chart-container");
   if (!c) return;
-  if (DC.raf){cancelAnimationFrame(DC.raf);DC.raf=null;}
-  DC.sym=sym||"V50"; DC.offset=0; DC.zoom=1;
-  c.innerHTML=`<canvas id="dc-canvas" style="width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas>`;
+  if (DC.raf) { cancelAnimationFrame(DC.raf); DC.raf = null; }
+  DC.sym = sym || "V50"; DC.offset = 0; DC.zoom = 1;
+  c.innerHTML = `<canvas id="dc-canvas" style="width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas>`;
   derivAddFullscreenBtn();
   dcInit();
 }
 
-function dcUpdateCandles(c){ DC.candles=c; DC.offset=0; }
-function dcUpdateLiveCandle(c){ DC.live=c; }
-function dcUpdateSignal(s){ DC.signal=s; }
-function dcUpdatePrice(p){ DC.price=p; }
+function dcUpdateCandles(c)  { DC.candles = c; DC.offset = 0; }
+function dcUpdateLiveCandle(c){ DC.live   = c; }
+function dcUpdateSignal(s)   { DC.signal  = s; }
+function dcUpdatePrice(p)    { DC.price   = p; }
 
-function derivAddFullscreenBtn(){
-  const c=document.getElementById("deriv-chart-container");
+function derivAddFullscreenBtn() {
+  const c = document.getElementById("deriv-chart-container");
   if (!c) return;
   c.querySelector(".deriv-chart-fullscreen")?.remove();
-  const b=document.createElement("button");
-  b.className="deriv-chart-fullscreen"; b.textContent="⛶";
-  b.onclick=()=>{
-    const o=document.querySelector(".deriv-chart-outer");
+  const b = document.createElement("button");
+  b.className = "deriv-chart-fullscreen";
+  b.textContent = "⛶";
+  b.onclick = () => {
+    const o = document.querySelector(".deriv-chart-outer");
     if (!o) return;
     o.classList.toggle("fullscreen");
-    b.textContent=o.classList.contains("fullscreen")?"✕":"⛶";
-    setTimeout(dcResize,100);
+    b.textContent = o.classList.contains("fullscreen") ? "✕" : "⛶";
+    setTimeout(dcFitCanvas, 100);
   };
   c.appendChild(b);
 }
 
-function derivToggleFullscreen(){
+function derivToggleFullscreen() {
   document.querySelector(".deriv-chart-fullscreen")?.click();
 }
+
+// ============================================
+// CHART OVERLAYS — Show/Hide Toggle System
+// TP/SL/Entry improved lines + Entry marker
+// ============================================
+
+const DC_OVERLAYS = {
+  ema:        true,
+  vwap:       true,
+  bb:         false,
+  supertrend: true,
+  levels:     true,   // SL/TP/Entry
+  patterns:   true,
+  fibonacci:  false,
+  volume:     false,
+};
+
+// ── OVERLAY TOGGLE UI ─────────────────────────
+
+function dcRenderOverlayPanel() {
+  const el = document.getElementById("dc-overlay-panel");
+  if (!el) return;
+
+  const items = [
+    { key:"ema",        icon:"📈", label:"EMA 20/50/200" },
+    { key:"vwap",       icon:"🟡", label:"VWAP" },
+    { key:"bb",         icon:"🔵", label:"Bollinger Bands" },
+    { key:"supertrend", icon:"🔺", label:"Supertrend" },
+    { key:"levels",     icon:"🎯", label:"SL / TP / Entry" },
+    { key:"patterns",   icon:"🕯", label:"Ghost Candles" },
+    { key:"fibonacci",  icon:"🌀", label:"Fibonacci" },
+    { key:"volume",     icon:"📊", label:"Volume Bars" },
+  ];
+
+  el.innerHTML = items.map(item => `
+    <button class="dc-overlay-btn ${DC_OVERLAYS[item.key]?"active":""}"
+      onclick="dcToggleOverlay('${item.key}',this)">
+      ${item.icon} ${item.label}
+    </button>
+  `).join("");
+}
+
+function dcToggleOverlay(key, btn) {
+  DC_OVERLAYS[key] = !DC_OVERLAYS[key];
+  btn.classList.toggle("active", DC_OVERLAYS[key]);
+}
+
+// ── OVERRIDE dcDraw to use DC_OVERLAYS ────────
+
+const _origDcDraw = dcDraw;
+dcDraw = function() {
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!ctx || !canvas) return;
+
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  if (!W || !H) return;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0a0e1a";
+  ctx.fillRect(0, 0, W, H);
+
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const cW   = Math.max(1.5, CW * 0.65);
+  const all  = DC.liveCandle
+    ? [...DC.candles, { ...DC.liveCandle, _live: true }]
+    : [...DC.candles];
+
+  if (all.length === 0) {
+    ctx.fillStyle = "#475569";
+    ctx.font      = "12px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("Waiting for data...", (W-RPAD)/2, H/2);
+    ctx.textAlign = "left";
+    return;
+  }
+
+  const vis    = Math.max(5, Math.round(40 / DC.zoom));
+  const total  = all.length;
+  const endI   = Math.min(total, Math.max(vis, total - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl     = all.slice(startI, endI);
+  if (!sl.length) return;
+
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng   = hi - lo || hi * 0.01 || 1;
+  const pad   = rng * 0.15;
+  hi += pad; lo -= pad;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+  const dec   = hi < 10 ? 5 : hi < 100 ? 3 : hi < 10000 ? 2 : 0;
+
+  // ── GRID ──
+  for (let i = 0; i <= 5; i++) {
+    const v = lo + (hi - lo) * i / 5;
+    const y = scY(v);
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD, y); ctx.stroke();
+    ctx.fillStyle = "#475569";
+    ctx.font      = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(v.toFixed(dec), W - RPAD + 3, y + 3);
+  }
+  ctx.strokeStyle = "#1e2d45";
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(W-RPAD, TPAD); ctx.lineTo(W-RPAD, H-BPAD); ctx.stroke();
+
+  // ── VOLUME BARS (optional) ──
+  if (DC_OVERLAYS.volume) {
+    const maxVol = Math.max(...sl.map(c => c.volume || 1));
+    sl.forEach((c, i) => {
+      const x    = i * CW + CW / 2;
+      const bull = c.close >= c.open;
+      const vh   = ((c.volume || 1) / maxVol) * (drawH * 0.15);
+      ctx.fillStyle = bull ? "rgba(0,230,118,0.15)" : "rgba(255,59,92,0.15)";
+      ctx.fillRect(x - cW/2, H - BPAD - vh, cW, vh);
+    });
+  }
+
+  // ── EMA LINES (optional) ──
+  const allCloses = all.map(c => c.close);
+  if (DC_OVERLAYS.ema) {
+    const buildEMA = (period) => {
+      if (allCloses.length < period) return [];
+      const k = 2/(period+1), out = new Array(allCloses.length).fill(null);
+      let e = allCloses.slice(0,period).reduce((a,b)=>a+b,0)/period;
+      out[period-1] = e;
+      for (let i=period; i<allCloses.length; i++) { e=allCloses[i]*k+e*(1-k); out[i]=e; }
+      return out;
+    };
+    const drawEMA = (period, color, label) => {
+      const s = buildEMA(period);
+      if (!s.length) return;
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+      let mv = true, lastVal = null;
+      sl.forEach((_, vi) => {
+        const v = s[startI + vi];
+        if (!v || v < lo || v > hi) { mv = true; return; }
+        const x = vi * CW + CW/2, y = scY(v);
+        mv ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        mv = false; lastVal = { x, y, v };
+      });
+      ctx.stroke();
+      if (lastVal) {
+        ctx.fillStyle = color; ctx.font = "8px monospace";
+        ctx.fillText(label + " " + lastVal.v.toFixed(dec), W-RPAD+3, lastVal.y-4);
+      }
+    };
+    drawEMA(20, "#3b82f6", "E20");
+    drawEMA(50, "#f59e0b", "E50");
+    drawEMA(200,"#00e676", "E200");
+  }
+
+  // ── BOLLINGER BANDS (optional) ──
+  if (DC_OVERLAYS.bb) {
+    const period = 20;
+    if (allCloses.length >= period) {
+      const drawBBLine = (getVal, color) => {
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+        let mv = true;
+        sl.forEach((_, vi) => {
+          const ai = startI + vi;
+          const sl2 = allCloses.slice(Math.max(0,ai-period+1), ai+1);
+          if (sl2.length < period) return;
+          const avg = sl2.reduce((a,b)=>a+b,0)/sl2.length;
+          const std = Math.sqrt(sl2.reduce((s,v)=>s+Math.pow(v-avg,2),0)/sl2.length);
+          const v   = getVal(avg, std);
+          if (v < lo || v > hi) { mv = true; return; }
+          const x = vi * CW + CW/2, y = scY(v);
+          mv ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          mv = false;
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+      };
+      drawBBLine((avg,std) => avg+2*std, "rgba(99,102,241,0.6)");
+      drawBBLine((avg)     => avg,       "rgba(99,102,241,0.3)");
+      drawBBLine((avg,std) => avg-2*std, "rgba(99,102,241,0.6)");
+    }
+  }
+
+  // ── VWAP (optional) ──
+  if (DC_OVERLAYS.vwap) {
+    let cumPV = 0, cumV = 0;
+    all.slice(0, endI).forEach(c => { cumPV += (c.high+c.low+c.close)/3; cumV++; });
+    const vwap = cumV ? cumPV/cumV : 0;
+    if (vwap >= lo && vwap <= hi) {
+      const vy = scY(vwap);
+      ctx.strokeStyle = "rgba(245,200,66,0.5)";
+      ctx.lineWidth   = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(0,vy); ctx.lineTo(W-RPAD,vy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f5c842"; ctx.font = "8px monospace";
+      ctx.fillText("VWAP " + vwap.toFixed(dec), W-RPAD+3, vy-2);
+    }
+  }
+
+  // ── SUPERTREND (optional) ──
+  if (DC_OVERLAYS.supertrend && DC.signal?.details) {
+    const stVal = parseFloat(DC.signal.details.vwap) || 0;
+    if (stVal >= lo && stVal <= hi) {
+      const sty = scY(stVal);
+      ctx.strokeStyle = DC.signal.rise ? "#00e676" : "#ff3b5c";
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.moveTo(0,sty); ctx.lineTo(W-RPAD,sty); ctx.stroke();
+    }
+  }
+
+  // ── FIBONACCI (optional) ──
+  if (DC_OVERLAYS.fibonacci && all.length > 20) {
+    const fHi = Math.max(...all.slice(-20).map(c=>c.high));
+    const fLo = Math.min(...all.slice(-20).map(c=>c.low));
+    const fibLevels = [
+      { r:0,    col:"rgba(255,255,255,0.3)",  lbl:"100%" },
+      { r:0.236,col:"rgba(251,191,36,0.5)",   lbl:"76.4%" },
+      { r:0.382,col:"rgba(139,92,246,0.5)",   lbl:"61.8%" },
+      { r:0.5,  col:"rgba(255,255,255,0.4)",  lbl:"50.0%" },
+      { r:0.618,col:"rgba(139,92,246,0.5)",   lbl:"38.2%" },
+      { r:0.786,col:"rgba(251,191,36,0.5)",   lbl:"21.4%" },
+      { r:1,    col:"rgba(255,255,255,0.3)",  lbl:"0%" },
+    ];
+    fibLevels.forEach(f => {
+      const v = fHi - (fHi-fLo) * f.r;
+      if (v < lo || v > hi) return;
+      const y = scY(v);
+      ctx.strokeStyle = f.col; ctx.lineWidth = 1; ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-RPAD,y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = f.col.replace("0.5","0.8").replace("0.3","0.6");
+      ctx.font = "8px monospace";
+      ctx.fillText("Fib " + f.lbl, 4, y - 2);
+    });
+  }
+
+  // ── SL / TP / ENTRY LINES (optional, IMPROVED) ──
+  if (DC_OVERLAYS.levels && DC.signal?.fired) {
+    const drawLevel = (price, color, label, isEntry) => {
+      const pf = parseFloat(price);
+      if (!pf || pf < lo || pf > hi) return;
+      const y  = scY(pf);
+      const lw = isEntry ? 2.5 : 1.5;
+
+      // Line
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.setLineDash(isEntry ? [] : [6, 3]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RPAD - 2, y); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label box — BIGGER
+      const boxW = 58, boxH = 20;
+      const boxX = W - RPAD - boxW - 4;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(boxX, y - boxH/2, boxW, boxH, 4)
+                    : ctx.rect(boxX, y - boxH/2, boxW, boxH);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.font      = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(label, boxX + boxW/2, y + 4);
+      ctx.textAlign = "left";
+
+      // Price tag on right axis
+      ctx.fillStyle = color;
+      ctx.fillRect(W - RPAD, y - 10, RPAD - 1, 20);
+      ctx.fillStyle = "#000";
+      ctx.font      = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(pf.toFixed(dec), W - RPAD + (RPAD-1)/2, y + 4);
+      ctx.textAlign = "left";
+
+      // Entry arrow marker
+      if (isEntry) {
+        const arrowX = 10;
+        const arrowDir = DC.signal.rise;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        if (arrowDir) {
+          ctx.moveTo(arrowX,     y + 8);
+          ctx.lineTo(arrowX + 8, y + 8);
+          ctx.lineTo(arrowX + 4, y);
+        } else {
+          ctx.moveTo(arrowX,     y - 8);
+          ctx.lineTo(arrowX + 8, y - 8);
+          ctx.lineTo(arrowX + 4, y);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+    };
+
+    const s = DC.signal;
+    drawLevel(s.sl,    "#ff3b5c", "🛡 SL",     false);
+    drawLevel(s.tp2,   "#00ff88", "🎯 TP2",    false);
+    drawLevel(s.tp1,   "#00e676", "✅ TP1",    false);
+    drawLevel(s.entry, "#ffffff", "📍 ENTRY",  true);  // Entry drawn last (on top)
+  }
+
+  // ── CANDLES ──
+  sl.forEach((c, i) => {
+    const live  = c._live === true;
+    const bull  = c.close >= c.open;
+    const color = live ? "#a78bfa" : (bull ? "#00e676" : "#ff3b5c");
+    const x     = i * CW + CW/2;
+    const hY    = scY(c.high), lY = scY(c.low);
+    const oY    = scY(c.open), clY = scY(c.close);
+    const bTop  = Math.min(oY, clY);
+    const bH    = Math.max(1.5, Math.abs(oY - clY));
+
+    ctx.strokeStyle = live ? "#c4b5fd" : color;
+    ctx.lineWidth   = Math.max(1, cW * 0.1);
+    ctx.beginPath(); ctx.moveTo(x, hY); ctx.lineTo(x, lY); ctx.stroke();
+
+    if (live) {
+      ctx.fillStyle = "rgba(167,139,250,0.4)";
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
+      ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1;
+      ctx.strokeRect(x - cW/2, bTop, cW, bH);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fillRect(x - cW/2, bTop, cW, bH);
+    }
+  });
+
+  // ── GHOST CANDLES (optional) ──
+  if (DC_OVERLAYS.patterns && DC.signal?.fired && DC.signal.predictions && DC.offset === 0) {
+    const atr  = parseFloat(DC.signal.details?.atr) || rng * 0.3;
+    const base = sl[sl.length-1]?.close || (hi+lo)/2;
+    DC.signal.predictions.forEach((p, i) => {
+      const x = (sl.length + i) * CW + CW/2;
+      if (x > W - RPAD - 5) return;
+      const rise2  = p.dir === "RISE";
+      const gc     = rise2 ? base + atr*0.5 : base - atr*0.5;
+      const go     = base;
+      const gh     = rise2 ? gc + atr*0.3 : go + atr*0.15;
+      const gl     = rise2 ? go - atr*0.15 : gc - atr*0.3;
+      if (gh > hi || gl < lo) return;
+
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, scY(gh)); ctx.lineTo(x, scY(gl)); ctx.stroke();
+      const bt  = Math.min(scY(go), scY(gc));
+      const bh2 = Math.max(2, Math.abs(scY(go) - scY(gc)));
+      ctx.fillStyle = rise2 ? "rgba(124,58,237,0.5)" : "rgba(147,51,234,0.5)";
+      ctx.fillRect(x - cW/2, bt, cW, bh2);
+      ctx.strokeRect(x - cW/2, bt, cW, bh2);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#a855f7"; ctx.font = "8px monospace"; ctx.textAlign = "center";
+      ctx.fillText("C" + p.index, x, H - BPAD + 12);
+      ctx.fillText(p.riseP + "%", x, H - BPAD + 22);
+      ctx.textAlign = "left";
+    });
+  }
+
+  // ── LIVE PRICE BOX ──
+  const lp = DC.liveCandle?.close || DC.price || all[all.length-1]?.close;
+  if (lp && lp >= lo && lp <= hi) {
+    const py = scY(lp);
+    ctx.strokeStyle = "rgba(245,200,66,0.4)"; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W-RPAD,py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#f5c842";
+    ctx.fillRect(W-RPAD, py-10, RPAD-1, 20);
+    ctx.fillStyle = "#000"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
+    ctx.fillText(lp.toFixed(dec), W-RPAD+(RPAD-1)/2, py+4);
+    ctx.textAlign = "left";
+  }
+
+  // ── TIME AXIS ──
+  const ts = Math.max(1, Math.floor(sl.length/5));
+  ctx.fillStyle = "#334155"; ctx.font = "8px monospace";
+  sl.forEach((c, i) => {
+    if (i % ts !== 0) return;
+    const dt = new Date((c.epoch||0)*1000);
+    const t  = dt.getUTCHours().toString().padStart(2,"0")+":"+dt.getUTCMinutes().toString().padStart(2,"0");
+    ctx.fillText(t, i*CW+2, H-6);
+  });
+
+  // ── LIVE badge ──
+  if (DC.liveCandle) {
+    ctx.fillStyle = "rgba(0,230,118,0.12)"; ctx.fillRect(4,4,44,16);
+    ctx.fillStyle = "#00e676"; ctx.font = "bold 9px monospace";
+    ctx.fillText("● LIVE", 7, 15);
+  }
+
+  // Scroll hint
+  if (DC.offset > 0) {
+    ctx.fillStyle = "rgba(10,14,26,0.8)"; ctx.fillRect(0,TPAD,W-RPAD,18);
+    ctx.fillStyle = "#f5c842"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+    ctx.fillText("◀ " + DC.offset + " back — swipe right for latest", (W-RPAD)/2, TPAD+13);
+    ctx.textAlign = "left";
+  }
+  ctx.fillStyle = "#1e293b"; ctx.font = "8px monospace";
+  ctx.fillText(DC.sym + " x"+DC.zoom.toFixed(1)+" "+all.length+"c", 4, H-6);
+};
+
+// ── INJECT STRATEGY OVERLAYS INTO DRAW ────────
+const _origDcDraw2 = dcDraw;
+dcDraw = function() {
+  _origDcDraw2();
+
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!canvas || !ctx) return;
+  if (!DC.candles.length) return;
+  if (typeof STRATEGIES === "undefined" || !STRATEGIES.active.length) return;
+  if (typeof drawStrategyOverlays === "undefined") return;
+
+  const W    = canvas.offsetWidth;
+  const H    = canvas.offsetHeight;
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const all  = DC.liveCandle ? [...DC.candles, DC.liveCandle] : [...DC.candles];
+  const vis  = Math.max(5, Math.round(40 / DC.zoom));
+  const endI = Math.min(all.length, Math.max(vis, all.length - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl   = all.slice(startI, endI);
+  if (!sl.length) return;
+
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng = hi - lo || hi * 0.01 || 1;
+  hi += rng * 0.15; lo -= rng * 0.15;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+  const dec   = hi < 10 ? 5 : hi < 100 ? 3 : hi < 10000 ? 2 : 0;
+  const gap   = CW;
+
+  drawStrategyOverlays(ctx, all, W, H, RPAD, TPAD, BPAD, scY, gap, CW, startI, sl, dec);
+};
+
+// ============================================
+// ENGULFING CANDLE ARROWS — Auto Draw
+// Green ▲ for Bull Engulfing
+// Red ▼ for Bear Engulfing
+// ============================================
+
+function dcDrawEngulfingArrows(ctx, sl, gap, scY, BPAD, H) {
+  if (sl.length < 2) return;
+
+  sl.forEach((c, i) => {
+    if (i < 1) return;
+    const p = sl[i - 1];
+    const x = i * gap + gap / 2;
+
+    const bodyC  = Math.abs(c.close - c.open);
+    const bodyP  = Math.abs(p.close - p.open);
+    const bullC  = c.close > c.open;
+    const bearC  = c.close < c.open;
+    const bullP  = p.close > p.open;
+    const bearP  = p.close < p.open;
+
+    // BULLISH ENGULFING — green candle fully covers red
+    if (bullC && bearP && c.open <= p.close && c.close >= p.open && bodyC > bodyP) {
+      // Arrow below candle
+      const arrowY = scY(c.low) + 8;
+
+      // Arrow triangle
+      ctx.beginPath();
+      ctx.moveTo(x,          arrowY);
+      ctx.lineTo(x - 7,      arrowY + 14);
+      ctx.lineTo(x + 7,      arrowY + 14);
+      ctx.closePath();
+      ctx.fillStyle = "#00e676";
+      ctx.fill();
+
+      // Glow
+      ctx.shadowColor = "#00e676";
+      ctx.shadowBlur  = 8;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // Label
+      ctx.fillStyle   = "#00e676";
+      ctx.font        = "bold 8px monospace";
+      ctx.textAlign   = "center";
+      ctx.fillText("BUY", x, arrowY + 25);
+      ctx.textAlign   = "left";
+    }
+
+    // BEARISH ENGULFING — red candle fully covers green
+    if (bearC && bullP && c.open >= p.close && c.close <= p.open && bodyC > bodyP) {
+      // Arrow above candle
+      const arrowY = scY(c.high) - 8;
+
+      // Arrow triangle
+      ctx.beginPath();
+      ctx.moveTo(x,          arrowY);
+      ctx.lineTo(x - 7,      arrowY - 14);
+      ctx.lineTo(x + 7,      arrowY - 14);
+      ctx.closePath();
+      ctx.fillStyle = "#ff3b5c";
+      ctx.fill();
+
+      // Glow
+      ctx.shadowColor = "#ff3b5c";
+      ctx.shadowBlur  = 8;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // Label
+      ctx.fillStyle   = "#ff3b5c";
+      ctx.font        = "bold 8px monospace";
+      ctx.textAlign   = "center";
+      ctx.fillText("SELL", x, arrowY - 19);
+      ctx.textAlign   = "left";
+    }
+  });
+
+  ctx.shadowBlur = 0;
+}
+
+// Inject engulfing arrows into dcDraw
+const _dcDrawWithEngulf = dcDraw;
+dcDraw = function() {
+  _dcDrawWithEngulf();
+
+  const canvas = DC.canvas;
+  const ctx    = DC.ctx;
+  if (!canvas || !ctx) return;
+  if (!DC.candles.length) return;
+
+  const W    = canvas.offsetWidth;
+  const H    = canvas.offsetHeight;
+  const RPAD = 65, TPAD = 12, BPAD = 26;
+  const CW   = dcSlotW();
+  const all  = DC.liveCandle
+    ? [...DC.candles, { ...DC.liveCandle, _live: true }]
+    : [...DC.candles];
+
+  const vis    = Math.max(5, Math.round(40 / DC.zoom));
+  const endI   = Math.min(all.length, Math.max(vis, all.length - DC.offset));
+  const startI = Math.max(0, endI - vis);
+  const sl     = all.slice(startI, endI);
+  if (sl.length < 2) return;
+
+  // Price range
+  let hi = -Infinity, lo = Infinity;
+  sl.forEach(c => { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); });
+  const rng  = hi - lo || hi * 0.01 || 1;
+  hi += rng * 0.15; lo -= rng * 0.15;
+  const drawH = H - TPAD - BPAD;
+  const scY   = v => TPAD + drawH * (1 - (v - lo) / (hi - lo));
+
+  dcDrawEngulfingArrows(ctx, sl, CW, scY, BPAD, H);
+};

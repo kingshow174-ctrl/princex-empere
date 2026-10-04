@@ -130,87 +130,6 @@
   </div>
 
 
-      <!-- FLOATING RISE/FALL BUTTONS -->
-    <!-- FLOATING RISE/FALL OVERLAY -->
-    <div id="deriv-float-btns" style="display:none;position:fixed;bottom:70px;left:0;right:0;z-index:100;background:rgba(10,14,26,0.97);border-top:1px solid var(--border);backdrop-filter:blur(10px)">
-      <!-- STAKE + DURATION -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <button onclick="dfbChangeStake(-1)" style="width:28px;height:28px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:16px;cursor:pointer">−</button>
-          <span id="dfb-stake" style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--gold);min-width:65px;text-align:center">10 USD</span>
-          <button onclick="dfbChangeStake(1)"  style="width:28px;height:28px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:16px;cursor:pointer">+</button>
-        </div>
-        <div style="display:flex;gap:4px">
-          <button class="dfb-dur active" onclick="dfbSetDur(1,this)">1m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(2,this)">2m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(3,this)">3m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(5,this)">5m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(10,this)">10m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(15,this)">15m</button>
-        </div>
-      </div>
-      <!-- RISE / FALL BUTTONS -->
-      <div style="display:flex;height:85px">
-        <button id="dfb-rise-btn" onclick="dfbBuy('RISE')" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#00c851,#00e676);color:#000;border:none;cursor:pointer;gap:2px">
-          <span style="font-size:26px;line-height:1">⬆</span>
-          <span class="dfb-label" style="font-family:var(--font-display);font-size:15px;font-weight:900;letter-spacing:2px">RISE</span>
-          <span id="dfb-rise-payout" style="font-size:10px;opacity:0.8;font-family:var(--font-display)">--</span>
-        </button>
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 12px;background:var(--bg2);border-left:1px solid rgba(255,255,255,0.05);border-right:1px solid rgba(255,255,255,0.05);min-width:80px;gap:4px">
-          <div id="dfb-pair-label" style="font-family:var(--font-display);font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1px">V50</div>
-          <div id="dfb-live-price-float" style="font-family:var(--font-display);font-size:13px;font-weight:700;color:#fff">--</div>
-          <button onclick="dfbToggle()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">▼ HIDE</button>
-        </div>
-        <button id="dfb-fall-btn" onclick="dfbBuy('FALL')" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#ff1744,#ff3b5c);color:#fff;border:none;cursor:pointer;gap:2px">
-          <span style="font-size:26px;line-height:1">⬇</span>
-          <span class="dfb-label" style="font-family:var(--font-display);font-size:15px;font-weight:900;letter-spacing:2px">FALL</span>
-          <span id="dfb-fall-payout" style="font-size:10px;opacity:0.8;font-family:var(--font-display)">--</span>
-        </button>
-      </div>
-      <!-- RESULT -->
-      <div id="dfb-result" style="display:none;padding:8px 16px;font-family:var(--font-display);font-size:12px;text-align:center;letter-spacing:1px"></div>
-    </div>
-
-    <!-- SHOW TRADE BUTTON (when collapsed) -->
-    <button id="deriv-float-toggle" onclick="dfbToggle()" style="display:none;position:fixed;bottom:80px;right:16px;z-index:101;background:var(--green);color:#000;border:none;border-radius:24px;padding:10px 20px;font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;box-shadow:0 4px 20px rgba(0,230,118,0.4)">
-      📈 TRADE
-    </button>
-      <div class="dfb-settings">
-        <div class="dfb-stake-row">
-          <button class="dfb-stake-btn" onclick="dfbChangeStake(-1)">−</button>
-          <span id="dfb-stake">10 USD</span>
-          <button class="dfb-stake-btn" onclick="dfbChangeStake(1)">+</button>
-        </div>
-        <div class="dfb-dur-row">
-          <button class="dfb-dur active" onclick="dfbSetDur(1,this)">1m</button>
-          <button class="dfb-dur" onclick="dfbSetDur(2,this)">2m</button>
-          <button class="dfb-dur" onclick="dfbSetDur(3,this)">3m</button>
-          <button class="dfb-dur" onclick="dfbSetDur(5,this)">5m</button>
-          <button class="dfb-dur" onclick="dfbSetDur(10,this)">10m</button>
-          <button class="dfb-dur" onclick="dfbSetDur(15,this)">15m</button>
-        </div>
-      </div>
-      <div class="dfb-trade-row">
-        <button class="dfb-rise" id="dfb-rise-btn" onclick="dfbBuy('RISE')">
-          <span class="dfb-arrow">⬆</span>
-          <span class="dfb-label">RISE</span>
-          <span class="dfb-payout" id="dfb-rise-payout">--</span>
-        </button>
-        <div class="dfb-middle">
-          <div class="dfb-pair" id="dfb-pair-label">V50</div>
-          <div class="dfb-price" id="dfb-live-price-float">--</div>
-          <button class="dfb-collapse" onclick="dfbToggle()">▼</button>
-        </div>
-        <button class="dfb-fall" id="dfb-fall-btn" onclick="dfbBuy('FALL')">
-          <span class="dfb-arrow">⬇</span>
-          <span class="dfb-label">FALL</span>
-          <span class="dfb-payout" id="dfb-fall-payout">--</span>
-        </button>
-      </div>
-      <div id="dfb-result" style="display:none"></div>
-    </div>
-    <button id="deriv-float-toggle" style="display:none" onclick="dfbToggle()">📈 TRADE</button>
-
   <!-- ── SIGNALS TAB ── -->
   <div id="tab-signals" class="tab-content">
 
@@ -388,131 +307,141 @@
   </div>
 
   <!-- ── DERIV TAB ── -->
-  <div id="tab-deriv" class="tab-content deriv-fixed-layout">
+  <div id="tab-deriv" class="tab-content">
 
-    <!-- TOP: HEADER + ACCOUNT -->
-    <div class="dfl-top">
+    <div class="deriv-header">
+      <div class="deriv-title">
+        DERIV
+        <span>RISE / FALL · VOLATILITY INDICES</span>
+      </div>
+      <span id="deriv-status">OFFLINE</span>
+    </div>
 
-      <!-- ACCOUNT BAR -->
-      <div id="deriv-account-bar" style="display:none;justify-content:space-between;align-items:center;padding:8px 16px;background:linear-gradient(135deg,#0d1117,#111827);border-bottom:1px solid rgba(0,230,118,0.2)">
-        <div>
-          <div style="font-family:var(--font-display);font-size:9px;color:var(--muted);letter-spacing:1px" id="dab-account-id">--</div>
-          <div style="font-family:var(--font-display);font-size:18px;font-weight:900;color:var(--green)" id="dab-balance">-- USD</div>
+    <div class="deriv-section">
+      <p class="deriv-section-label">SELECT INDEX</p>
+      <div class="deriv-pair-grid" id="deriv-pair-grid"></div>
+    </div>
+
+    <div class="deriv-section">
+      <p class="deriv-section-label">TIMEFRAME</p>
+      <div class="deriv-tf-grid" id="deriv-tf-grid"></div>
+    </div>
+
+
+    <!-- CHART OVERLAY TOGGLES -->
+    <div class="dc-overlay-wrap">
+      <span class="dc-overlay-label">👁 CHART OVERLAYS — TAP TO SHOW/HIDE</span>
+      <div id="dc-overlay-panel"></div>
+    </div>
+
+    <!-- DERIV SUB TABS -->
+    <div class="deriv-sub-tabs">
+      <button class="deriv-sub-tab active" id="dsub-chart" onclick="switchDerivSubTab('chart')">
+        📊 CHART
+      </button>
+      <button class="deriv-sub-tab" id="dsub-strategy" onclick="switchDerivSubTab('strategy')">
+        🎨 STRATEGY
+      </button>
+    </div>
+
+    <!-- CHART VIEW -->
+    <div id="deriv-sub-chart">
+    <div class="deriv-chart-outer">
+      <div class="deriv-chart-toolbar">
+        <span id="deriv-chart-pair" class="dchart-pair">V50</span>
+        <span id="deriv-live-price-header" class="dchart-price">--</span>
+        <span id="deriv-price-change" class="dchart-change"></span>
+        <span style="flex:1"></span>
+        <span class="live-dot" id="deriv-dot"></span>
+        <span id="deriv-status" class="dchart-status">OFFLINE</span>
+      </div>
+      <div id="deriv-chart-container" class="deriv-chart-container">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+          SELECT A PAIR TO LOAD CHART
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.5s infinite"></div>
-          <span style="font-family:var(--font-display);font-size:9px;color:var(--green);letter-spacing:1px">LIVE</span>
-          <button onclick="derivTradingLogout()" style="background:transparent;border:1px solid rgba(255,59,92,0.3);color:var(--red);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer">🚪</button>
-        </div>
-      </div>
-
-      <!-- LOGIN BAR -->
-      <div id="deriv-login-bar" style="padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border)">
-        <button onclick="derivTradingLogin()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--green);color:var(--green);border-radius:10px;font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer">
-          🔑 LOGIN WITH DERIV TO TRADE
-        </button>
-      </div>
-
-      <!-- PAIR SELECTOR -->
-      <div style="padding:8px 16px;border-bottom:1px solid var(--border);background:var(--bg2)">
-        <p style="font-family:var(--font-display);font-size:8px;color:var(--muted);letter-spacing:2px;margin:0 0 6px">SELECT INDEX</p>
-        <div class="deriv-pair-grid" id="deriv-pair-grid"></div>
-      </div>
-
-      <!-- TIMEFRAME -->
-      <div style="padding:6px 16px;border-bottom:1px solid var(--border);background:var(--bg2)">
-        <p style="font-family:var(--font-display);font-size:8px;color:var(--muted);letter-spacing:2px;margin:0 0 6px">TIMEFRAME</p>
-        <div class="deriv-tf-grid" id="deriv-tf-grid"></div>
-      </div>
-
-      <!-- SUB TABS -->
-      <div class="deriv-sub-tabs">
-        <button class="deriv-sub-tab active" id="dsub-chart" onclick="switchDerivSubTab('chart')">📊 CHART</button>
-        <button class="deriv-sub-tab" id="dsub-strategy" onclick="switchDerivSubTab('strategy')">🎨 STRATEGY</button>
       </div>
     </div>
 
-    <!-- MIDDLE: CHART (fills remaining space) -->
-    <div class="dfl-middle">
+    </div><!-- end deriv-sub-chart -->
 
-      <!-- CHART VIEW -->
-      <div id="deriv-sub-chart" style="height:100%;display:flex;flex-direction:column">
-        <div class="deriv-chart-toolbar" style="flex-shrink:0">
-          <span id="deriv-chart-pair" class="dchart-pair">V50</span>
-          <span id="deriv-live-price-header" class="dchart-price">--</span>
-          <span id="deriv-price-change" class="dchart-change"></span>
-          <span style="flex:1"></span>
-          <span class="live-dot" id="deriv-dot"></span>
-          <span id="deriv-status" class="dchart-status">OFFLINE</span>
-        </div>
-        <div id="deriv-chart-container" class="deriv-chart-container" style="flex:1;min-height:0">
-          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-family:var(--font-display);font-size:11px;letter-spacing:1px">
-            SELECT A PAIR TO LOAD CHART
-          </div>
-        </div>
-      </div>
-
-      <!-- STRATEGY VIEW -->
-      <div id="deriv-sub-strategy" style="display:none;height:100%;overflow-y:auto">
-        <div id="strategy-page"></div>
-      </div>
-
+    <div class="deriv-btn-row">
+      <button class="deriv-btn-signal" id="deriv-btn-signal">⚡ GET SIGNAL</button>
+      <button class="deriv-btn-auto btn-auto" id="deriv-btn-auto">🔄 AUTO SCAN</button>
     </div>
 
-    <!-- BOTTOM: RISE/FALL TRADING PANEL (fixed) -->
-    <div class="dfl-bottom">
-
-      <!-- STAKE ROW -->
-      <div class="dfb-stake-row-inline">
-        <span style="font-family:var(--font-display);font-size:9px;color:var(--muted);letter-spacing:1px">STAKE</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button onclick="dfbChangeStake(-1)" class="dfb-adj-btn">−</button>
-          <input id="dfb-stake-input" type="number" value="10" min="1" max="50000"
-            style="width:80px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--gold);font-family:var(--font-display);font-size:14px;font-weight:700;text-align:center;outline:none"
-            onchange="dfbSetStakeInput(this.value)"
-            oninput="dfbSetStakeInput(this.value)">
-          <button onclick="dfbChangeStake(1)"  class="dfb-adj-btn">+</button>
-        </div>
-        <div style="display:flex;gap:4px">
-          <button class="dfb-dur active" onclick="dfbSetDur(1,this)">1m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(2,this)">2m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(3,this)">3m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(5,this)">5m</button>
-          <button class="dfb-dur"        onclick="dfbSetDur(10,this)">10m</button>
-        </div>
-      </div>
-
-      <!-- RISE / FALL BUTTONS -->
-      <div style="display:flex;height:80px">
-        <button id="dfb-rise-btn" onclick="dfbBuy('RISE')"
-          style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#00c851,#00e676);color:#000;border:none;cursor:pointer;gap:2px;transition:filter 0.15s">
-          <span style="font-size:22px;line-height:1">⬆</span>
-          <span class="dfb-label" style="font-family:var(--font-display);font-size:14px;font-weight:900;letter-spacing:2px">RISE</span>
-          <span id="dfb-rise-payout" style="font-size:9px;opacity:0.85;font-family:var(--font-display)">Payout: --</span>
-        </button>
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;background:var(--bg2);border-left:1px solid rgba(255,255,255,0.05);border-right:1px solid rgba(255,255,255,0.05);min-width:75px;gap:2px">
-          <div id="dfb-pair-label" style="font-family:var(--font-display);font-size:9px;color:var(--gold);font-weight:700;letter-spacing:1px">V50</div>
-          <div id="dfb-live-price-float" style="font-family:var(--font-display);font-size:12px;font-weight:700;color:#fff">--</div>
-          <div id="dfb-result-inline" style="font-size:9px;text-align:center;font-family:var(--font-display)"></div>
-        </div>
-        <button id="dfb-fall-btn" onclick="dfbBuy('FALL')"
-          style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#ff1744,#ff3b5c);color:#fff;border:none;cursor:pointer;gap:2px;transition:filter 0.15s">
-          <span style="font-size:22px;line-height:1">⬇</span>
-          <span class="dfb-label" style="font-family:var(--font-display);font-size:14px;font-weight:900;letter-spacing:2px">FALL</span>
-          <span id="dfb-fall-payout" style="font-size:9px;opacity:0.85;font-family:var(--font-display)">Payout: --</span>
-        </button>
-      </div>
-
+    <!-- STRATEGY PAGE -->
+    <div id="deriv-sub-strategy" style="display:none">
+      <div id="strategy-page"></div>
     </div>
 
-    <!-- STRATEGY SETTINGS OVERLAY -->
-    <div id="strategy-settings-overlay" onclick="if(event.target===this)closeStrategySettings()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:flex-end;justify-content:center">
-      <div id="strategy-settings-panel" style="background:var(--bg2);border-radius:16px 16px 0 0;width:100%;max-height:80vh;overflow-y:auto"></div>
+    <!-- SETTINGS OVERLAY -->
+    <div id="strategy-settings-overlay" onclick="if(event.target===this)closeStrategySettings()">
+      <div id="strategy-settings-panel"></div>
+    </div>
+
+    <div id="deriv-signal-card">
+      <div style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-display);font-size:11px;letter-spacing:1px">
+        SELECT A PAIR AND PRESS GET SIGNAL
+      </div>
     </div>
 
   </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-tab" id="nav-signals" onclick="switchTab('signals')" style="position:relative">
+      <span class="nav-icon">🔔</span>SIGNALS
+      <span class="nav-badge" id="notif-badge"></span>
+    </button>
+    <button class="nav-tab active" id="nav-forex" onclick="switchTab('forex')">
+      <span class="nav-icon">📊</span>FOREX
+    </button>
+    <button class="nav-tab" id="nav-deriv-pro" onclick="switchTab('deriv-pro')">
+      <span class="nav-icon">⚡</span>PRO
+    </button>
+    <button class="nav-tab" id="nav-deriv" onclick="switchTab('deriv')">
+      <span class="nav-icon">⚡</span>DERIV
+    </button>
+  </nav>
+
+</div><!-- end main-app -->
+
+<script>
+  // Init auth
+  if (typeof initAuth === "function") {
+    initAuth();
+  } else {
+    document.getElementById("main-app").style.display = "block";
+    document.getElementById("auth-screen").style.display = "none";
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".nav-tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".nav-tab").forEach(b => b.classList.remove("active"));
+    document.getElementById("tab-"+tab).classList.add("active");
+    document.getElementById("nav-"+tab).classList.add("active");
+    if (tab === "deriv") derivInitUI();
+    if (tab === "deriv-pro") dpInitUI();
+    if (tab === "signals") notifInitSignalsTab();
+  }
+
+  function toggleSignoutMenu() {
+    const m = document.getElementById("signout-menu");
+    m.style.display = m.style.display==="block"?"none":"block";
+  }
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".user-badge")&&!e.target.closest(".signout-menu")) {
+      const m=document.getElementById("signout-menu");
+      if (m) m.style.display="none";
+    }
+  });
+
+  if ("serviceWorker" in navigator)
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/gemini-config.js"></script>
   <script src="config.js"></script>
   <script src="auth.js"></script>
